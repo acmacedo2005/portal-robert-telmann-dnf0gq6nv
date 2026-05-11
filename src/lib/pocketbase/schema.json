@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-11T17:32:36.650Z",
+  "generatedAt": "2026-05-11T18:05:03.980Z",
   "collections": [
     {
       "name": "users",
@@ -221,6 +221,13 @@
           "required": false,
           "system": false,
           "collectionRef": "tratamentos"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["FUE", "FUT", "Outra"]
         }
       ],
       "indexes": []
@@ -753,6 +760,12 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "data_inicio_tratamento",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -771,7 +784,7 @@
         {
           "name": "venda_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "vendas"
         },

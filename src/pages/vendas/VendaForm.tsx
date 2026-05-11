@@ -40,6 +40,7 @@ const formSchema = z.object({
   }),
   data_venda: z.date({ required_error: 'Data da venda é obrigatória' }),
   data_cirurgia: z.date().optional(),
+  data_inicio_tratamento: z.date().optional(),
   valor_total: z.number().min(0),
   desconto_cortesia: z.number().min(0).default(0),
   entrada_paga: z.number().min(0).default(0),
@@ -79,6 +80,9 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
         ...initialData,
         data_venda: new Date(initialData.data_venda),
         data_cirurgia: initialData.data_cirurgia ? new Date(initialData.data_cirurgia) : undefined,
+        data_inicio_tratamento: initialData.data_inicio_tratamento
+          ? new Date(initialData.data_inicio_tratamento)
+          : undefined,
       })
     } else {
       form.reset({
@@ -106,6 +110,9 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
         ...values,
         data_venda: values.data_venda.toISOString(),
         data_cirurgia: values.data_cirurgia ? values.data_cirurgia.toISOString() : null,
+        data_inicio_tratamento: values.data_inicio_tratamento
+          ? values.data_inicio_tratamento.toISOString()
+          : null,
         valor_final: valFinal,
         saldo_restante: saldo,
         status,
@@ -196,19 +203,34 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
                 />
               </div>
 
-              {(tipo === 'cirurgia' || tipo === 'cirurgia_tratamento') && (
-                <FormField
-                  control={form.control}
-                  name="data_cirurgia"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Data da Cirurgia (Rascunho)</FormLabel>
-                      <DatePicker date={field.value} setDate={field.onChange} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <div className="grid grid-cols-2 gap-4">
+                {(tipo === 'cirurgia' || tipo === 'cirurgia_tratamento') && (
+                  <FormField
+                    control={form.control}
+                    name="data_cirurgia"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Data Prevista (Cirurgia)</FormLabel>
+                        <DatePicker date={field.value} setDate={field.onChange} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                {(tipo === 'tratamento' || tipo === 'cirurgia_tratamento') && (
+                  <FormField
+                    control={form.control}
+                    name="data_inicio_tratamento"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Início do Tratamento</FormLabel>
+                        <DatePicker date={field.value} setDate={field.onChange} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-4 bg-zinc-50 dark:bg-zinc-900 p-4 rounded-md">
                 <FormField
