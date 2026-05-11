@@ -18,7 +18,7 @@ export default function PacienteProntuario({
   const [logs, setLogs] = useState<any[]>([])
   const { user } = useAuth()
 
-  const canEdit = user?.papel === 'admin' || user?.papel === 'medico'
+  const canEdit = user?.papel === 'admin' || paciente.criado_por === user?.id
 
   useEffect(() => {
     getPacienteLogs(paciente.id)
@@ -78,14 +78,24 @@ export default function PacienteProntuario({
   const lastUpdateDate = lastLog ? format(new Date(lastLog.created), 'dd/MM/yyyy HH:mm') : null
   const lastUpdateUser = lastLog?.expand?.user_id?.nome || 'Desconhecido'
 
+  const createdBy = paciente.expand?.criado_por?.nome || 'Desconhecido'
+  const createdAt = paciente.created ? format(new Date(paciente.created), 'dd/MM/yyyy HH:mm') : '-'
+
   return (
     <div className="space-y-6">
-      {lastLog && (
-        <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground">
-          Última atualização: <strong>{lastUpdateDate}</strong> por{' '}
-          <strong>{lastUpdateUser}</strong>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted p-4 rounded-md border text-sm text-muted-foreground">
+        <div>
+          <p>
+            Registro criado por: <strong>{createdBy}</strong> em <strong>{createdAt}</strong>
+          </p>
+          {lastLog && (
+            <p className="mt-1">
+              Última atualização: <strong>{lastUpdateDate}</strong> por{' '}
+              <strong>{lastUpdateUser}</strong>
+            </p>
+          )}
         </div>
-      )}
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

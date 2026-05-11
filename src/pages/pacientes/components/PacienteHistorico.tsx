@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { format } from 'date-fns'
+import { CalendarX, ShoppingBag, Receipt, Activity } from 'lucide-react'
 
 export default function PacienteHistorico({ pacienteId }: { pacienteId: string }) {
   const [loading, setLoading] = useState(true)
@@ -20,13 +21,11 @@ export default function PacienteHistorico({ pacienteId }: { pacienteId: string }
     const fetchData = async () => {
       try {
         const [agendamentos, vendas, faturas, saldos] = await Promise.all([
-          pb
-            .collection('agendamentos')
-            .getFullList({
-              filter: `paciente_id="${pacienteId}"`,
-              sort: '-data_agendamento',
-              expand: 'profissional_id',
-            }),
+          pb.collection('agendamentos').getFullList({
+            filter: `paciente_id="${pacienteId}"`,
+            sort: '-data_agendamento',
+            expand: 'profissional_id',
+          }),
           pb
             .collection('vendas')
             .getFullList({ filter: `paciente_id="${pacienteId}"`, sort: '-data_venda' }),
@@ -77,8 +76,11 @@ export default function PacienteHistorico({ pacienteId }: { pacienteId: string }
             <TableBody>
               {data.agendamentos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-4">
-                    Nenhum dado
+                  <TableCell colSpan={4} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <CalendarX className="w-8 h-8 mb-2 opacity-50" />
+                      <p>Nenhum dado encontrado</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -110,8 +112,11 @@ export default function PacienteHistorico({ pacienteId }: { pacienteId: string }
             <TableBody>
               {data.vendas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-4">
-                    Nenhum dado
+                  <TableCell colSpan={4} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <ShoppingBag className="w-8 h-8 mb-2 opacity-50" />
+                      <p>Nenhum dado encontrado</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -143,8 +148,11 @@ export default function PacienteHistorico({ pacienteId }: { pacienteId: string }
             <TableBody>
               {data.faturas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-4">
-                    Nenhum dado
+                  <TableCell colSpan={4} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Receipt className="w-8 h-8 mb-2 opacity-50" />
+                      <p>Nenhum dado encontrado</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -185,8 +193,11 @@ export default function PacienteHistorico({ pacienteId }: { pacienteId: string }
             <TableBody>
               {data.saldos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">
-                    Nenhum dado
+                  <TableCell colSpan={5} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Activity className="w-8 h-8 mb-2 opacity-50" />
+                      <p>Nenhum dado encontrado</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

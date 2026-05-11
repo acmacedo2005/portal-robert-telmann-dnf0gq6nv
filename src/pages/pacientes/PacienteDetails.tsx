@@ -37,9 +37,22 @@ export default function PacienteDetails() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-1/4" />
-        <Skeleton className="h-[400px] w-full" />
+      <div className="p-6 space-y-6 bg-background rounded-lg shadow-sm border border-border">
+        <div className="flex items-center gap-4">
+          <Skeleton className="w-10 h-10 rounded-md" />
+          <Skeleton className="h-8 w-64" />
+        </div>
+        <Skeleton className="h-10 w-full sm:w-[400px]" />
+        <div className="space-y-4 max-w-3xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
