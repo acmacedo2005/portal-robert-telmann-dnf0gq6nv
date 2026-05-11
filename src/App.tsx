@@ -13,6 +13,7 @@ import CirurgiasList from './pages/cirurgias/CirurgiasList'
 import FinanceiroList from './pages/financeiro/FinanceiroList'
 import AgendamentosList from './pages/agendamentos/AgendamentosList'
 import TratamentosList from './pages/tratamentos/TratamentosList'
+import VendasList from './pages/vendas/VendasList'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/financeiro" element={<FinanceiroList />} />
             <Route path="/agendamentos" element={<AgendamentosList />} />
             <Route path="/tratamentos" element={<TratamentosList />} />
+            <Route path="/vendas" element={<VendasList />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

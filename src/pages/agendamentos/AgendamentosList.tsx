@@ -78,12 +78,10 @@ export default function AgendamentosList() {
     try {
       setError(false)
       const [a, p, pr, s] = await Promise.all([
-        pb
-          .collection('agendamentos')
-          .getFullList({
-            expand: 'paciente_id,profissional_id,saldo_tratamento_id',
-            sort: '-data_agendamento',
-          }),
+        pb.collection('agendamentos').getFullList({
+          expand: 'paciente_id,profissional_id,saldo_tratamento_id',
+          sort: '-data_agendamento',
+        }),
         pb.collection('pacientes').getFullList({ sort: 'nome' }),
         pb
           .collection('users')
