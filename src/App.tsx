@@ -11,6 +11,8 @@ import NotFound from './pages/NotFound'
 import PacientesList from './pages/pacientes/PacientesList'
 import CirurgiasList from './pages/cirurgias/CirurgiasList'
 import FinanceiroList from './pages/financeiro/FinanceiroList'
+import AgendamentosList from './pages/agendamentos/AgendamentosList'
+import TratamentosList from './pages/tratamentos/TratamentosList'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -25,6 +27,8 @@ const App = () => (
             <Route path="/pacientes" element={<PacientesList />} />
             <Route path="/cirurgias" element={<CirurgiasList />} />
             <Route path="/financeiro" element={<FinanceiroList />} />
+            <Route path="/agendamentos" element={<AgendamentosList />} />
+            <Route path="/tratamentos" element={<TratamentosList />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

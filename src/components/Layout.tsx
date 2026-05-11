@@ -1,6 +1,6 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import { LogOut, Home, Users, Activity, DollarSign, Menu } from 'lucide-react'
+import { LogOut, Home, Users, Activity, DollarSign, Menu, Calendar, Pill } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +20,16 @@ export default function Layout() {
 
   if (loading)
     return <div className="h-screen w-screen flex items-center justify-center">Carregando...</div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center space-y-4">
+        <p className="text-muted-foreground animate-pulse">
+          Nenhum usuário logado. Redirecionando...
+        </p>
+        <Navigate to="/login" replace />
+      </div>
+    )
+  }
 
   const role = user.papel || 'enfermagem'
 
@@ -32,10 +41,22 @@ export default function Layout() {
       roles: ['admin', 'vendedor', 'financeiro', 'medico', 'enfermagem'],
     },
     {
+      name: 'Agendamentos',
+      path: '/agendamentos',
+      icon: Calendar,
+      roles: ['admin', 'vendedor', 'medico', 'enfermagem'],
+    },
+    {
       name: 'Pacientes',
       path: '/pacientes',
       icon: Users,
       roles: ['admin', 'vendedor', 'medico', 'enfermagem'],
+    },
+    {
+      name: 'Tratamentos',
+      path: '/tratamentos',
+      icon: Pill,
+      roles: ['admin', 'vendedor'],
     },
     {
       name: 'Cirurgias',

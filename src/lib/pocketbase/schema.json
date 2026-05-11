@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-11T15:27:30.027Z",
+  "generatedAt": "2026-05-11T15:42:42.769Z",
   "collections": [
     {
       "name": "users",
@@ -208,6 +208,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "tratamento_pre_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "tratamentos"
         }
       ],
       "indexes": []
@@ -288,6 +295,20 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["cirurgia", "tratamento"]
+        },
+        {
+          "name": "tratamento_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "tratamentos"
         }
       ],
       "indexes": []
@@ -334,6 +355,249 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "tratamentos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "tipo_tratamento",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["meso", "prp", "botox"]
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_fim",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sessoes_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sessoes_realizadas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["ativo", "concluido", "cancelado"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "retornos_automaticos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "cirurgia_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "cirurgias"
+        },
+        {
+          "name": "dias_apos",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["10", "30", "90", "180", "365"]
+        },
+        {
+          "name": "tipo_retorno",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["online", "presencial"]
+        },
+        {
+          "name": "profissional_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["enfermagem", "medico"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["agendado", "realizado", "cancelado"]
+        },
+        {
+          "name": "data_agendamento_gerada",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "agendamentos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["cirurgia", "tratamento", "avaliacao", "retorno"]
+        },
+        {
+          "name": "data_agendamento",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "hora_agendamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "profissional_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["agendado", "realizada", "cancelado", "rascunho"]
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cirurgia_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "cirurgias"
+        },
+        {
+          "name": "tratamento_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "tratamentos"
+        },
+        {
+          "name": "retorno_automatico_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "retornos_automaticos"
         },
         {
           "name": "created",

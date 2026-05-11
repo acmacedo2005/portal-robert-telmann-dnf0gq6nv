@@ -53,7 +53,7 @@ export default function Login() {
     const { error } = await signIn(email, password)
 
     if (error) {
-      toast.error('E-mail ou senha incorretos.')
+      toast.error('Credenciais inválidas.')
     } else {
       toast.success('Login realizado com sucesso!')
       const role = pb.authStore.record?.papel
