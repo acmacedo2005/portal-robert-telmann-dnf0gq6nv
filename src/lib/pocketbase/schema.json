@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-11T15:57:13.055Z",
+  "generatedAt": "2026-05-11T17:15:43.723Z",
   "collections": [
     {
       "name": "users",
@@ -48,6 +48,12 @@
         {
           "name": "ativo",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome",
+          "type": "text",
           "required": false,
           "system": false
         }
@@ -233,7 +239,7 @@
         {
           "name": "cirurgia_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "cirurgias"
         },
@@ -309,6 +315,13 @@
           "required": false,
           "system": false,
           "collectionRef": "tratamentos"
+        },
+        {
+          "name": "venda_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "vendas"
         }
       ],
       "indexes": []
@@ -544,7 +557,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["cirurgia", "tratamento", "avaliacao", "retorno"]
+          "selectValues": ["cirurgia", "aplicacao", "avaliacao", "retorno", "meso", "prp", "botox"]
         },
         {
           "name": "data_agendamento",
@@ -598,6 +611,202 @@
           "required": false,
           "system": false,
           "collectionRef": "retornos_automaticos"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "saldo_tratamento_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "saldo_tratamentos"
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "vendas",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["cirurgia", "tratamento", "cirurgia_tratamento"]
+        },
+        {
+          "name": "valor_total",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "desconto_cortesia",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_final",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "entrada_paga",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "saldo_restante",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pendente", "paga", "parcial"]
+        },
+        {
+          "name": "data_venda",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sessoes_meso",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sessoes_prp",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sessoes_botox",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "parcelas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "saldo_tratamentos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "venda_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "vendas"
+        },
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "tipo_tratamento",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["meso", "prp", "botox"]
+        },
+        {
+          "name": "sessoes_total",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sessoes_realizadas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sessoes_restantes",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "incluido_no_pacote",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["ativo", "concluido"]
         },
         {
           "name": "created",

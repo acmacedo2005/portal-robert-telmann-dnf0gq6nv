@@ -53,14 +53,16 @@ export default function Login() {
     const { error } = await signIn(email, password)
 
     if (error) {
-      toast.error('Credenciais inválidas.')
+      toast.error('Credenciais inválidas. Por favor, verifique seu e-mail e senha.')
     } else {
       toast.success('Login realizado com sucesso!')
       const role = pb.authStore.record?.papel
 
       if (role === 'financeiro') {
         navigate('/financeiro')
-      } else if (role === 'medico' || role === 'vendedor') {
+      } else if (role === 'vendedor') {
+        navigate('/agendamentos')
+      } else if (role === 'medico') {
         navigate('/cirurgias')
       } else if (role === 'enfermagem') {
         navigate('/pacientes')
@@ -73,26 +75,26 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 relative overflow-hidden">
-      {/* Decorative Background Elements */}
-      <div className="absolute top-0 w-full h-1 bg-primary animate-pulse" />
-      <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none rounded-full" />
+      {/* Gold & Clean Decorative Background */}
+      <div className="absolute top-0 w-full h-2 bg-primary" />
+      <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-primary/10 via-transparent to-transparent pointer-events-none rounded-full" />
 
-      <Card className="w-full max-w-md shadow-elevation border-t-4 border-t-primary bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md relative z-10 animate-fade-in-up transition-all duration-500">
+      <Card className="w-full max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 relative z-10 animate-fade-in-up transition-all duration-500">
         <CardHeader className="space-y-2 text-center pb-6">
-          <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform duration-500 hover:scale-110">
+          <div className="mx-auto bg-black dark:bg-white w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-md">
             <Lock className="w-8 h-8 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <CardTitle className="text-3xl font-bold tracking-tight text-black dark:text-white">
             Portal Robert Telmann
           </CardTitle>
-          <CardDescription className="text-zinc-500 dark:text-zinc-400">
+          <CardDescription className="text-zinc-500 dark:text-zinc-400 font-medium">
             Acesse sua conta para gerenciar a clínica
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-zinc-700 dark:text-zinc-300">
+              <Label htmlFor="email" className="text-zinc-700 dark:text-zinc-300 font-semibold">
                 E-mail
               </Label>
               <div className="relative group">
@@ -104,7 +106,7 @@ export default function Login() {
                   type="email"
                   placeholder="exemplo@clinica.com"
                   className={cn(
-                    'pl-10 transition-all duration-300 bg-zinc-50 dark:bg-zinc-900 focus-visible:ring-primary',
+                    'pl-10 h-11 transition-all duration-300 bg-zinc-50 dark:bg-zinc-950 focus-visible:ring-primary',
                     emailError && 'border-destructive focus-visible:ring-destructive',
                   )}
                   value={email}
@@ -113,13 +115,16 @@ export default function Login() {
                 />
               </div>
               {emailError && (
-                <p className="text-sm text-destructive animate-fade-in">{emailError}</p>
+                <p className="text-sm text-destructive font-medium animate-fade-in">{emailError}</p>
               )}
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-zinc-700 dark:text-zinc-300">
+                <Label
+                  htmlFor="password"
+                  className="text-zinc-700 dark:text-zinc-300 font-semibold"
+                >
                   Senha
                 </Label>
               </div>
@@ -132,7 +137,7 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   className={cn(
-                    'pl-10 pr-10 transition-all duration-300 bg-zinc-50 dark:bg-zinc-900 focus-visible:ring-primary',
+                    'pl-10 pr-10 h-11 transition-all duration-300 bg-zinc-50 dark:bg-zinc-950 focus-visible:ring-primary',
                     passwordError && 'border-destructive focus-visible:ring-destructive',
                   )}
                   value={password}
@@ -149,13 +154,15 @@ export default function Login() {
                 </button>
               </div>
               {passwordError && (
-                <p className="text-sm text-destructive animate-fade-in">{passwordError}</p>
+                <p className="text-sm text-destructive font-medium animate-fade-in">
+                  {passwordError}
+                </p>
               )}
             </div>
 
             <Button
               type="submit"
-              className="w-full h-11 text-base font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-primary hover:bg-primary/90 text-primary-foreground group mt-2"
+              className="w-full h-12 text-base font-bold shadow-md hover:shadow-lg transition-all duration-300 bg-primary hover:bg-primary/90 text-black group mt-4"
               disabled={loading}
             >
               {loading ? (
@@ -165,7 +172,7 @@ export default function Login() {
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  Entrar
+                  Acessar Sistema
                   <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
                 </span>
               )}

@@ -20,11 +20,12 @@ export default function Layout() {
 
   if (loading)
     return <div className="h-screen w-screen flex items-center justify-center">Carregando...</div>
+
   if (!user) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center space-y-4">
-        <p className="text-muted-foreground animate-pulse">
-          Nenhum usuário logado. Redirecionando...
+      <div className="h-screen w-screen flex flex-col items-center justify-center space-y-4 bg-zinc-50 dark:bg-zinc-950">
+        <p className="text-zinc-600 dark:text-zinc-400 font-medium animate-pulse text-lg">
+          Nenhum usuário logado.
         </p>
         <Navigate to="/login" replace />
       </div>
@@ -38,7 +39,7 @@ export default function Layout() {
       name: 'Dashboard',
       path: '/',
       icon: Home,
-      roles: ['admin', 'vendedor', 'financeiro', 'medico', 'enfermagem'],
+      roles: ['admin'],
     },
     {
       name: 'Agendamentos',
@@ -50,7 +51,7 @@ export default function Layout() {
       name: 'Pacientes',
       path: '/pacientes',
       icon: Users,
-      roles: ['admin', 'vendedor', 'medico', 'enfermagem'],
+      roles: ['admin', 'enfermagem'],
     },
     {
       name: 'Tratamentos',
@@ -62,20 +63,25 @@ export default function Layout() {
       name: 'Cirurgias',
       path: '/cirurgias',
       icon: Activity,
-      roles: ['admin', 'vendedor', 'medico', 'financeiro'],
+      roles: ['admin', 'medico'],
     },
-    { name: 'Financeiro', path: '/financeiro', icon: DollarSign, roles: ['admin', 'financeiro'] },
+    {
+      name: 'Financeiro',
+      path: '/financeiro',
+      icon: DollarSign,
+      roles: ['admin', 'financeiro'],
+    },
   ]
 
   const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="h-16 flex items-center justify-center border-b px-4">
-          <h1 className="text-xl font-bold text-primary truncate">Clínica Capilar</h1>
+      <Sidebar className="border-r border-zinc-200 dark:border-zinc-800">
+        <SidebarHeader className="h-16 flex items-center justify-center border-b px-4 bg-black dark:bg-zinc-900">
+          <h1 className="text-xl font-bold text-primary truncate">Portal Telmann</h1>
         </SidebarHeader>
-        <SidebarContent className="py-4">
+        <SidebarContent className="py-4 bg-white dark:bg-zinc-950">
           <SidebarMenu>
             {visibleNavItems.map((item) => (
               <SidebarMenuItem key={item.path}>
@@ -83,10 +89,11 @@ export default function Layout() {
                   asChild
                   isActive={location.pathname === item.path}
                   tooltip={item.name}
+                  className="hover:bg-primary/10 hover:text-primary transition-colors data-[active=true]:bg-primary data-[active=true]:text-black"
                 >
                   <Link to={item.path}>
                     <item.icon className="h-5 w-5" />
-                    <span>{item.name}</span>
+                    <span className="font-medium">{item.name}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -96,24 +103,32 @@ export default function Layout() {
       </Sidebar>
 
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 md:px-6 bg-background">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 md:px-6 bg-white dark:bg-zinc-900 shadow-sm">
           <div className="flex items-center gap-4">
-            <SidebarTrigger className="-ml-2" />
-            <h2 className="text-lg font-semibold capitalize hidden sm:block">
+            <SidebarTrigger className="-ml-2 text-zinc-600 hover:text-primary transition-colors" />
+            <h2 className="text-xl font-bold capitalize hidden sm:block text-black dark:text-white">
               {location.pathname === '/' ? 'Dashboard' : location.pathname.substring(1)}
             </h2>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-right hidden sm:block">
-              <p className="font-medium">{user.name || user.email}</p>
-              <p className="text-muted-foreground capitalize">{user.papel}</p>
+              <p className="font-bold text-black dark:text-white">
+                {user.name || user.nome || user.email}
+              </p>
+              <p className="text-primary font-medium capitalize">{user.papel}</p>
             </div>
-            <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={signOut}
+              title="Sair"
+              className="hover:bg-red-50 hover:text-red-600"
+            >
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-muted/30">
+        <main className="flex-1 overflow-auto p-4 md:p-6 bg-zinc-50 dark:bg-zinc-950">
           <Outlet />
         </main>
       </SidebarInset>
