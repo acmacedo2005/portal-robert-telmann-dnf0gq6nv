@@ -17,8 +17,10 @@ import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Search, Plus } from 'lucide-react'
 import { format } from 'date-fns'
+import { useNavigate } from 'react-router-dom'
 
 export default function PacientesList() {
+  const navigate = useNavigate()
   const [pacientes, setPacientes] = useState<Paciente[]>([])
   const [search, setSearch] = useState('')
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -165,7 +167,7 @@ export default function PacientesList() {
               <TableRow
                 key={p.id}
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => openDetails(p)}
+                onClick={() => navigate(`/pacientes/${p.id}`)}
               >
                 <TableCell className="font-medium">{p.nome}</TableCell>
                 <TableCell>{p.cpf || '-'}</TableCell>

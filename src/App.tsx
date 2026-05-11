@@ -14,6 +14,7 @@ import FinanceiroList from './pages/financeiro/FinanceiroList'
 import AgendamentosList from './pages/agendamentos/AgendamentosList'
 import TratamentosList from './pages/tratamentos/TratamentosList'
 import VendasList from './pages/vendas/VendasList'
+import PacienteDetails from './pages/pacientes/PacienteDetails'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -26,6 +27,7 @@ const App = () => (
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/pacientes" element={<PacientesList />} />
+            <Route path="/pacientes/:id" element={<PacienteDetails />} />
             <Route path="/cirurgias" element={<CirurgiasList />} />
             <Route path="/financeiro" element={<FinanceiroList />} />
             <Route path="/agendamentos" element={<AgendamentosList />} />
