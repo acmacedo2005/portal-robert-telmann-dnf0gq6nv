@@ -27,23 +27,46 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
   Plus,
   Search,
   CalendarX,
-  CheckCircle,
   Edit,
   Clock,
   AlertCircle,
   UserPlus,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  CalendarIcon,
+  LayoutList,
+  CalendarDays,
 } from 'lucide-react'
-import { format, isToday, isSameWeek, isSameMonth, parseISO } from 'date-fns'
+import {
+  format,
+  isSameMonth,
+  parseISO,
+  addDays,
+  subDays,
+  addWeeks,
+  subWeeks,
+  addMonths,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameDay,
+  isSameWeek,
+} from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
 
 export default function AgendamentosList() {
@@ -61,7 +84,11 @@ export default function AgendamentosList() {
   const [search, setSearch] = useState('')
   const [filterTipos, setFilterTipos] = useState<string[]>([])
   const [filterStatus, setFilterStatus] = useState<string>('todos')
-  const [currentTab, setCurrentTab] = useState('mes')
+  const [sortBy, setSortBy] = useState('data')
+
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [viewMode, setViewMode] = useState<'dia' | 'semana' | 'mes'>('mes')
+  const [displayStyle, setDisplayStyle] = useState<'list' | 'calendar'>('list')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -72,7 +99,7 @@ export default function AgendamentosList() {
   const [selectedPacienteId, setSelectedPacienteId] = useState<string>('novo')
   const [selectedTipo, setSelectedTipo] = useState('')
 
-  const availableTypes = ['meso', 'prp', 'botox', 'cirurgia', 'avaliacao', 'retorno']
+  const availableTypes = ['avaliacao', 'cirurgia', 'aplicacao', 'retorno', 'meso', 'prp', 'botox']
 
   const loadData = async () => {
     try {
@@ -96,7 +123,7 @@ export default function AgendamentosList() {
       setSaldos(s)
     } catch {
       setError(true)
-      toast.error('Erro ao carregar dados do servidor. Tente novamente mais tarde.')
+      toast.error('Erro ao carregar dados do servidor.')
     } finally {
       setLoading(false)
     }
@@ -115,20 +142,20 @@ export default function AgendamentosList() {
     let pId = selectedPacienteId
     if (isCreatingPatient || selectedPacienteId === 'novo') {
       if (!newPatient.nome) {
-        toast.error('O nome do paciente é obrigatório para um novo cadastro.')
+        toast.error('O nome do paciente é obrigatório.')
         return
       }
       try {
         const p = await pb.collection('pacientes').create(newPatient)
         pId = p.id
       } catch (err) {
-        toast.error('Erro ao cadastrar novo paciente. Verifique as informações fornecidas.')
+        toast.error('Erro ao cadastrar novo paciente.')
         return
       }
     }
 
     if (!pId || pId === 'novo') {
-      toast.error('Selecione ou cadastre um paciente para prosseguir.')
+      toast.error('Selecione ou cadastre um paciente.')
       return
     }
 
@@ -136,7 +163,7 @@ export default function AgendamentosList() {
     const saldo_tratamento_id = formData.get('saldo_tratamento_id') as string
 
     if (['aplicacao', 'meso', 'prp', 'botox'].includes(tipo) && !saldo_tratamento_id) {
-      toast.error('Um Saldo de Tratamento vinculado é obrigatório para este tipo de procedimento.')
+      toast.error('Um Saldo de Tratamento vinculado é obrigatório para aplicações.')
       return
     }
 
@@ -153,14 +180,14 @@ export default function AgendamentosList() {
 
     try {
       await pb.collection('agendamentos').create(data)
-      toast.success('Agendamento criado com sucesso')
+      toast.success('Registro criado com sucesso')
       setIsCreateOpen(false)
       setIsCreatingPatient(false)
       setNewPatient({ nome: '', telefone: '', email: '' })
       setSelectedPacienteId('novo')
       setSelectedTipo('')
     } catch (error) {
-      toast.error('Falha ao criar o agendamento no banco de dados.')
+      toast.error('Falha ao criar o agendamento.')
     }
   }
 
@@ -198,9 +225,9 @@ export default function AgendamentosList() {
           status: saldo.sessoes_restantes - 1 <= 0 ? 'concluido' : 'ativo',
         })
       }
-      toast.success('Status do agendamento atualizado para Realizado!')
+      toast.success('Agendamento marcado como realizado!')
     } catch (error) {
-      toast.error('Problema ao atualizar o status do agendamento.')
+      toast.error('Problema ao atualizar o status.')
     }
   }
 
@@ -212,11 +239,10 @@ export default function AgendamentosList() {
     let list = agendamentos.filter((a) => {
       if (!a.data_agendamento) return false
       const date = parseISO(a.data_agendamento)
-      const now = new Date()
 
-      if (currentTab === 'dia' && !isToday(date)) return false
-      if (currentTab === 'semana' && !isSameWeek(date, now, { weekStartsOn: 1 })) return false
-      if (currentTab === 'mes' && !isSameMonth(date, now)) return false
+      if (viewMode === 'dia' && !isSameDay(date, currentDate)) return false
+      if (viewMode === 'semana' && !isSameWeek(date, currentDate, { weekStartsOn: 1 })) return false
+      if (viewMode === 'mes' && !isSameMonth(date, currentDate)) return false
 
       const pacienteNome = a.expand?.paciente_id?.nome?.toLowerCase() || ''
       if (search && !pacienteNome.includes(search.toLowerCase())) return false
@@ -227,25 +253,63 @@ export default function AgendamentosList() {
       return true
     })
 
-    // Sort appropriately
-    return list.sort(
-      (a, b) => new Date(b.data_agendamento).getTime() - new Date(a.data_agendamento).getTime(),
-    )
-  }, [agendamentos, currentTab, search, filterTipos, filterStatus])
+    list.sort((a, b) => {
+      if (sortBy === 'data')
+        return new Date(b.data_agendamento).getTime() - new Date(a.data_agendamento).getTime()
+      if (sortBy === 'paciente')
+        return (a.expand?.paciente_id?.nome || '').localeCompare(b.expand?.paciente_id?.nome || '')
+      if (sortBy === 'tipo') return a.tipo.localeCompare(b.tipo)
+      if (sortBy === 'profissional')
+        return (
+          a.expand?.profissional_id?.name ||
+          a.expand?.profissional_id?.nome ||
+          ''
+        ).localeCompare(b.expand?.profissional_id?.name || b.expand?.profissional_id?.nome || '')
+      return 0
+    })
+
+    return list
+  }, [agendamentos, viewMode, currentDate, search, filterTipos, filterStatus, sortBy])
 
   const getStatusColor = (status: string) => {
     if (status === 'realizada')
-      return 'bg-zinc-800 dark:bg-zinc-100 text-white dark:text-black border-transparent'
+      return {
+        bg: 'bg-zinc-800 dark:bg-zinc-100',
+        text: 'text-white dark:text-black',
+        border: 'border-transparent',
+      }
     if (status === 'cancelado')
-      return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-100 dark:border-red-800'
+      return { bg: 'bg-red-500', text: 'text-white', border: 'border-red-600' }
     if (status === 'rascunho')
-      return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-100'
-    return 'bg-primary/20 text-primary border-primary/30'
+      return { bg: 'bg-zinc-400', text: 'text-white', border: 'border-zinc-500' }
+    return { bg: 'bg-primary', text: 'text-primary-foreground', border: 'border-primary/80' }
   }
 
   const openEdit = (a: RecordModel) => {
     setEditingAgendamento(a)
     setIsEditOpen(true)
+  }
+
+  const handlePrev = () => {
+    if (viewMode === 'dia') setCurrentDate(subDays(currentDate, 1))
+    if (viewMode === 'semana') setCurrentDate(subWeeks(currentDate, 1))
+    if (viewMode === 'mes') setCurrentDate(subMonths(currentDate, 1))
+  }
+
+  const handleNext = () => {
+    if (viewMode === 'dia') setCurrentDate(addDays(currentDate, 1))
+    if (viewMode === 'semana') setCurrentDate(addWeeks(currentDate, 1))
+    if (viewMode === 'mes') setCurrentDate(addMonths(currentDate, 1))
+  }
+
+  const formattedDateRange = () => {
+    if (viewMode === 'dia') return format(currentDate, "dd 'de' MMMM", { locale: ptBR })
+    if (viewMode === 'semana') {
+      const start = startOfWeek(currentDate, { weekStartsOn: 1 })
+      const end = endOfWeek(currentDate, { weekStartsOn: 1 })
+      return `${format(start, 'dd/MM', { locale: ptBR })} a ${format(end, 'dd/MM, yyyy', { locale: ptBR })}`
+    }
+    return format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })
   }
 
   const patientSaldos = useMemo(() => {
@@ -260,10 +324,7 @@ export default function AgendamentosList() {
         <h2 className="text-xl font-bold mb-2 text-black dark:text-white">
           Falha ao acessar os dados
         </h2>
-        <p className="text-zinc-500 font-medium mb-4">
-          Tivemos um problema ao comunicar com o servidor.
-        </p>
-        <Button onClick={loadData} className="font-bold">
+        <Button onClick={loadData} className="font-bold mt-4">
           Tentar novamente
         </Button>
       </div>
@@ -271,7 +332,7 @@ export default function AgendamentosList() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-black dark:text-white">
@@ -335,7 +396,6 @@ export default function AgendamentosList() {
                           required
                           value={newPatient.nome}
                           onChange={(e) => setNewPatient({ ...newPatient, nome: e.target.value })}
-                          placeholder="João da Silva"
                           className="bg-white dark:bg-zinc-900"
                         />
                       </div>
@@ -346,7 +406,6 @@ export default function AgendamentosList() {
                           onChange={(e) =>
                             setNewPatient({ ...newPatient, telefone: e.target.value })
                           }
-                          placeholder="(11) 99999-9999"
                           className="bg-white dark:bg-zinc-900"
                         />
                       </div>
@@ -389,6 +448,7 @@ export default function AgendamentosList() {
                       <SelectContent>
                         <SelectItem value="avaliacao">Avaliação</SelectItem>
                         <SelectItem value="cirurgia">Cirurgia</SelectItem>
+                        <SelectItem value="aplicacao">Aplicação</SelectItem>
                         <SelectItem value="meso">Meso</SelectItem>
                         <SelectItem value="prp">PRP</SelectItem>
                         <SelectItem value="botox">Botox</SelectItem>
@@ -413,7 +473,7 @@ export default function AgendamentosList() {
                   </div>
                 </div>
 
-                {['meso', 'prp', 'botox', 'aplicacao'].includes(selectedTipo) && (
+                {['aplicacao', 'meso', 'prp', 'botox'].includes(selectedTipo) && (
                   <div className="space-y-2 p-3 bg-primary/10 rounded-md border border-primary/30">
                     <Label className="font-bold text-primary">Vincular Pacote / Saldo *</Label>
                     <Select name="saldo_tratamento_id" required>
@@ -472,49 +532,85 @@ export default function AgendamentosList() {
 
       <Card className="bg-white dark:bg-zinc-900 shadow-md border border-zinc-200 dark:border-zinc-800">
         <CardContent className="p-4 space-y-4">
-          <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 md:w-[400px] bg-zinc-100 dark:bg-zinc-800">
-              <TabsTrigger
-                value="dia"
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm font-bold text-xs md:text-sm"
-              >
-                Dia
-              </TabsTrigger>
-              <TabsTrigger
-                value="semana"
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm font-bold text-xs md:text-sm"
-              >
-                Semana
-              </TabsTrigger>
-              <TabsTrigger
-                value="mes"
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm font-bold text-xs md:text-sm"
-              >
-                Mês
-              </TabsTrigger>
-              <TabsTrigger
-                value="todos"
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm font-bold text-xs md:text-sm"
-              >
-                Todos
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
-              <Input
-                placeholder="Pesquisar por paciente..."
-                className="pl-9 h-10 bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 font-medium"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+            {/* Calendar Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                <SelectTrigger className="w-[120px] font-bold h-10 border-zinc-200 dark:border-zinc-800">
+                  <SelectValue placeholder="Visualização" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dia">Dia</SelectItem>
+                  <SelectItem value="semana">Semana</SelectItem>
+                  <SelectItem value="mes">Mês</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-md p-1 border border-zinc-200 dark:border-zinc-700">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-white dark:hover:bg-zinc-900"
+                  onClick={handlePrev}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="h-8 font-bold px-3 capitalize hover:bg-white dark:hover:bg-zinc-900"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                      {formattedDateRange()}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={currentDate}
+                      onSelect={(d) => d && setCurrentDate(d)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-white dark:hover:bg-zinc-900"
+                  onClick={handleNext}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {viewMode === 'mes' && (
+                <div className="hidden sm:flex bg-zinc-100 dark:bg-zinc-800 rounded-md p-1 border border-zinc-200 dark:border-zinc-700">
+                  <Button
+                    variant={displayStyle === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 font-bold px-3 shadow-none"
+                    onClick={() => setDisplayStyle('list')}
+                  >
+                    <LayoutList className="h-4 w-4 mr-2" /> Lista
+                  </Button>
+                  <Button
+                    variant={displayStyle === 'calendar' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 font-bold px-3 shadow-none text-zinc-600 dark:text-zinc-400"
+                    onClick={() => setDisplayStyle('calendar')}
+                  >
+                    <CalendarDays className="h-4 w-4 mr-2" /> Calendário
+                  </Button>
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-4 w-full md:w-auto">
+            <div className="flex gap-2 w-full md:w-auto">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full md:w-[160px] h-10 bg-zinc-50 dark:bg-zinc-950 font-bold border-zinc-200 dark:border-zinc-800">
+                <SelectTrigger className="w-full md:w-[150px] h-10 font-bold border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -532,23 +628,51 @@ export default function AgendamentosList() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full md:w-[150px] h-10 font-bold border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="data">Data</SelectItem>
+                  <SelectItem value="paciente">Paciente</SelectItem>
+                  <SelectItem value="tipo">Tipo</SelectItem>
+                  <SelectItem value="profissional">Profissional</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 pt-2 items-center">
-            <span className="text-xs uppercase tracking-wider font-bold text-zinc-400 mr-1">
-              Filtrar:
-            </span>
-            {availableTypes.map((t) => (
-              <Badge
-                key={t}
-                variant="outline"
-                className={`cursor-pointer capitalize px-3 py-1 font-bold transition-all shadow-sm ${filterTipos.includes(t) ? 'bg-primary text-black border-primary scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:border-primary border-zinc-200 dark:border-zinc-700'}`}
-                onClick={() => toggleTypeFilter(t)}
-              >
-                {t}
-              </Badge>
-            ))}
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center pt-2">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
+              <Input
+                placeholder="Pesquisar por paciente..."
+                className="pl-9 h-10 bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 font-medium"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center flex-1">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mr-1 hidden sm:block">
+                Filtrar:
+              </span>
+              <ScrollArea className="w-[calc(100vw-2rem)] sm:w-auto whitespace-nowrap pb-2 sm:pb-0">
+                <div className="flex gap-2">
+                  {availableTypes.map((t) => (
+                    <Badge
+                      key={t}
+                      variant="outline"
+                      className={`cursor-pointer capitalize px-3 py-1.5 font-bold transition-all shadow-sm shrink-0 ${filterTipos.includes(t) ? 'bg-primary text-primary-foreground border-primary scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:border-primary border-zinc-200 dark:border-zinc-700'}`}
+                      onClick={() => toggleTypeFilter(t)}
+                    >
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -562,185 +686,248 @@ export default function AgendamentosList() {
       ) : filteredAgendamentos.length === 0 ? (
         <Card className="flex flex-col items-center justify-center py-16 text-zinc-500 border-dashed border-2 shadow-none bg-zinc-50 dark:bg-zinc-950/50">
           <CalendarX className="h-12 w-12 mb-4 text-zinc-400" />
-          <p className="text-lg font-bold text-black dark:text-white">
-            Nenhum agendamento encontrado
+          <p className="text-lg font-bold text-black dark:text-white">Nenhum registro</p>
+          <p className="text-sm font-medium mt-1 mb-6">
+            Ajuste os filtros ou crie um novo compromisso.
           </p>
-          <p className="text-sm font-medium mt-1">Ajuste os filtros ou crie um novo compromisso.</p>
           {canManage && (
             <Button
-              className="mt-6 font-bold bg-primary text-black hover:bg-primary/90 shadow-md"
+              className="font-bold bg-primary text-black hover:bg-primary/90 shadow-md"
               onClick={() => setIsCreateOpen(true)}
             >
-              <Plus className="mr-2 h-4 w-4" /> Agendar Agora
+              <Plus className="mr-2 h-4 w-4" /> Incluir
             </Button>
           )}
         </Card>
       ) : (
         <>
-          {/* Desktop View */}
-          <div className="hidden md:block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-950">
-                  <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
-                    Data e Hora
-                  </TableHead>
-                  <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
-                    Paciente
-                  </TableHead>
-                  <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">Tipo</TableHead>
-                  <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
-                    Profissional
-                  </TableHead>
-                  <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
-                    Situação
-                  </TableHead>
-                  <TableHead className="text-right font-bold text-zinc-900 dark:text-zinc-100">
-                    Ações Rápidas
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAgendamentos.map((a) => (
-                  <TableRow
-                    key={a.id}
-                    className="group transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30"
+          {displayStyle === 'calendar' && viewMode === 'mes' ? (
+            <div className="grid grid-cols-7 gap-px bg-zinc-200 dark:bg-zinc-800 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
+                <div
+                  key={d}
+                  className="bg-zinc-100 dark:bg-zinc-900 p-2 text-center text-[10px] font-bold text-zinc-500 uppercase"
+                >
+                  {d}
+                </div>
+              ))}
+              {eachDayOfInterval({
+                start: startOfWeek(startOfMonth(currentDate)),
+                end: endOfWeek(endOfMonth(currentDate)),
+              }).map((day, i) => {
+                const dayAgendamentos = filteredAgendamentos.filter((a) =>
+                  isSameDay(parseISO(a.data_agendamento), day),
+                )
+                const isCurrentMonth = isSameMonth(day, currentDate)
+                const isTodayDate = isToday(day)
+                return (
+                  <div
+                    key={i}
+                    className={`min-h-[120px] p-1.5 bg-white dark:bg-zinc-950 ${!isCurrentMonth ? 'opacity-40 bg-zinc-50 dark:bg-zinc-900/50' : ''}`}
                   >
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-zinc-400" />
-                        {format(parseISO(a.data_agendamento), 'dd/MM/yyyy')}
-                        {a.hora_agendamento && (
-                          <span className="text-primary font-bold ml-1 px-1.5 py-0.5 bg-primary/10 rounded">
-                            {a.hora_agendamento}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-bold text-black dark:text-white">
-                      {a.expand?.paciente_id?.nome}
-                    </TableCell>
-                    <TableCell className="capitalize font-bold text-zinc-700 dark:text-zinc-300">
-                      {a.tipo}
-                    </TableCell>
-                    <TableCell className="text-zinc-600 dark:text-zinc-400 font-semibold">
-                      {a.expand?.profissional_id?.name || a.expand?.profissional_id?.nome}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={`${getStatusColor(a.status)} capitalize border px-2.5 py-0.5 shadow-sm font-bold`}
-                      >
-                        {a.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-2">
-                        {a.status !== 'realizada' && a.status !== 'cancelado' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-700 border-green-300 bg-green-50 hover:bg-green-100 hover:text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-400 font-bold h-8"
-                            onClick={() => handleMarkRealizado(a)}
-                            title="Marcar como realizado"
-                          >
-                            <Check className="h-4 w-4 mr-1" /> Realizar
-                          </Button>
-                        )}
-                        {canManage && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                            onClick={() => openEdit(a)}
-                            title="Editar"
-                          >
-                            <Edit className="h-4 w-4 text-zinc-500" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile View */}
-          <div className="grid grid-cols-1 gap-4 md:hidden">
-            {filteredAgendamentos.map((a) => (
-              <Card
-                key={a.id}
-                className="overflow-hidden shadow-md border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
-              >
-                <CardHeader className="pb-3 pt-4 border-b border-zinc-100 dark:border-zinc-800">
-                  <CardTitle className="text-base flex justify-between items-start gap-2">
-                    <span className="font-bold text-black dark:text-white truncate">
-                      {a.expand?.paciente_id?.nome}
-                    </span>
-                    <Badge
-                      className={`${getStatusColor(a.status)} capitalize shrink-0 shadow-sm border font-bold`}
+                    <div
+                      className={`font-bold text-xs mb-1.5 w-6 h-6 flex items-center justify-center rounded-full ${isTodayDate ? 'bg-primary text-primary-foreground' : 'text-zinc-500'}`}
                     >
-                      {a.status}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm space-y-3 pt-3">
-                  <div className="flex items-center gap-2 font-bold text-black dark:text-white bg-zinc-50 dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                    <Clock className="h-4 w-4 text-primary" />
-                    {format(parseISO(a.data_agendamento), 'dd/MM/yyyy')}
-                    {a.hora_agendamento && (
-                      <span className="text-primary ml-auto px-2 py-0.5 bg-primary/10 rounded">
-                        {a.hora_agendamento}
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider mb-1 text-zinc-400">
-                        Tratamento
-                      </span>
-                      <span className="capitalize text-zinc-900 dark:text-zinc-100 font-bold">
-                        {a.tipo}
-                      </span>
+                      {day.getDate()}
                     </div>
-                    <div>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider mb-1 text-zinc-400">
+                    <div className="space-y-1">
+                      {dayAgendamentos.slice(0, 4).map((a) => {
+                        const colors = getStatusColor(a.status)
+                        return (
+                          <div
+                            key={a.id}
+                            className={`text-[10px] p-1 rounded truncate font-bold cursor-pointer transition-opacity hover:opacity-80 border ${colors.bg} ${colors.text} ${colors.border}`}
+                            onClick={() => openEdit(a)}
+                            title={`${a.hora_agendamento || ''} ${a.expand?.paciente_id?.nome} - ${a.tipo}`}
+                          >
+                            {a.hora_agendamento || '---'}{' '}
+                            {a.expand?.paciente_id?.nome?.split(' ')[0]}
+                          </div>
+                        )
+                      })}
+                      {dayAgendamentos.length > 4 && (
+                        <div className="text-[10px] text-zinc-400 font-bold px-1 mt-1 text-center">
+                          +{dayAgendamentos.length - 4} mais
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              {/* Desktop List View */}
+              <div className="hidden md:block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-950">
+                      <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
+                        Data e Hora
+                      </TableHead>
+                      <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
+                        Paciente
+                      </TableHead>
+                      <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
+                        Tipo
+                      </TableHead>
+                      <TableHead className="font-bold text-zinc-900 dark:text-zinc-100">
                         Profissional
-                      </span>
-                      <span className="text-zinc-900 dark:text-zinc-100 font-semibold">
-                        {a.expand?.profissional_id?.name ||
-                          a.expand?.profissional_id?.nome ||
-                          'N/A'}
-                      </span>
-                    </div>
-                  </div>
+                      </TableHead>
+                      <TableHead className="font-bold text-zinc-900 dark:text-zinc-100 text-center">
+                        Situação
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-zinc-900 dark:text-zinc-100">
+                        Ações
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAgendamentos.map((a) => {
+                      const colors = getStatusColor(a.status)
+                      return (
+                        <TableRow
+                          key={a.id}
+                          className="group transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30"
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-zinc-400" />
+                              {format(parseISO(a.data_agendamento), 'dd/MM/yyyy')}
+                              {a.hora_agendamento && (
+                                <span className="text-primary font-bold ml-1 px-1.5 py-0.5 bg-primary/10 rounded">
+                                  {a.hora_agendamento}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-bold text-black dark:text-white truncate max-w-[200px]">
+                            {a.expand?.paciente_id?.nome}
+                          </TableCell>
+                          <TableCell className="capitalize font-bold text-zinc-600 dark:text-zinc-400 text-xs">
+                            {a.tipo}
+                          </TableCell>
+                          <TableCell className="text-zinc-600 dark:text-zinc-400 font-semibold text-sm">
+                            {a.expand?.profissional_id?.name || a.expand?.profissional_id?.nome}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              className={`${colors.bg} ${colors.text} ${colors.border} capitalize border px-2 py-0.5 shadow-sm font-bold text-[10px]`}
+                            >
+                              {a.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-2">
+                              {a.status !== 'realizada' && a.status !== 'cancelado' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-700 border-green-300 bg-green-50 hover:bg-green-100 hover:text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-400 font-bold h-8"
+                                  onClick={() => handleMarkRealizado(a)}
+                                  title="Marcar como realizado"
+                                >
+                                  <Check className="h-4 w-4 mr-1" /> Realizar
+                                </Button>
+                              )}
+                              {canManage && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                  onClick={() => openEdit(a)}
+                                  title="Editar"
+                                >
+                                  <Edit className="h-4 w-4 text-zinc-500" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
 
-                  <div className="flex justify-end gap-2 pt-3 mt-3 border-t border-zinc-100 dark:border-zinc-800">
-                    {a.status !== 'realizada' && a.status !== 'cancelado' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:border-green-800 dark:text-green-400 font-bold"
-                        onClick={() => handleMarkRealizado(a)}
-                      >
-                        <Check className="h-4 w-4 mr-1.5" /> Realizar
-                      </Button>
-                    )}
-                    {canManage && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="font-bold border border-zinc-200 dark:border-zinc-700"
-                        onClick={() => openEdit(a)}
-                      >
-                        <Edit className="h-4 w-4 mr-1.5" /> Editar
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+              {/* Mobile List View */}
+              <div className="grid grid-cols-1 gap-4 md:hidden">
+                {filteredAgendamentos.map((a) => {
+                  const colors = getStatusColor(a.status)
+                  return (
+                    <Card
+                      key={a.id}
+                      className="overflow-hidden shadow-sm border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="font-bold text-black dark:text-white truncate pr-2 text-base">
+                            {a.expand?.paciente_id?.nome}
+                          </div>
+                          <Badge
+                            className={`${colors.bg} ${colors.text} ${colors.border} capitalize shrink-0 shadow-sm border font-bold text-[10px]`}
+                          >
+                            {a.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 font-bold text-black dark:text-white bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 mb-3 text-sm">
+                          <Clock className="h-4 w-4 text-primary" />
+                          {format(parseISO(a.data_agendamento), 'dd/MM/yyyy')}
+                          {a.hora_agendamento && (
+                            <span className="text-primary ml-auto px-2 py-0.5 bg-primary/10 rounded">
+                              {a.hora_agendamento}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                              Tratamento
+                            </span>
+                            <span className="capitalize font-bold text-zinc-700 dark:text-zinc-300">
+                              {a.tipo}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                              Profissional
+                            </span>
+                            <span className="font-semibold text-zinc-700 dark:text-zinc-300 truncate">
+                              {a.expand?.profissional_id?.name ||
+                                a.expand?.profissional_id?.nome ||
+                                'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-3 mt-3 border-t border-zinc-100 dark:border-zinc-800">
+                          {a.status !== 'realizada' && a.status !== 'cancelado' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:border-green-800 dark:text-green-400 font-bold"
+                              onClick={() => handleMarkRealizado(a)}
+                            >
+                              <Check className="h-4 w-4 mr-1.5" /> Realizar
+                            </Button>
+                          )}
+                          {canManage && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="font-bold border border-zinc-200 dark:border-zinc-700"
+                              onClick={() => openEdit(a)}
+                            >
+                              <Edit className="h-4 w-4 mr-1.5" /> Editar
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -775,7 +962,6 @@ export default function AgendamentosList() {
                   />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label className="font-bold text-black dark:text-white">
                   Profissional Responsável *
@@ -797,7 +983,6 @@ export default function AgendamentosList() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label className="font-bold text-black dark:text-white">Situação Atual</Label>
                 <Select name="status" defaultValue={editingAgendamento.status}>
@@ -817,7 +1002,6 @@ export default function AgendamentosList() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label className="font-bold text-black dark:text-white">Observações</Label>
                 <Input
@@ -827,7 +1011,6 @@ export default function AgendamentosList() {
                   className="font-medium"
                 />
               </div>
-
               <Button
                 type="submit"
                 className="w-full h-12 font-bold text-base bg-primary text-black hover:bg-primary/90 mt-4 shadow-md"
