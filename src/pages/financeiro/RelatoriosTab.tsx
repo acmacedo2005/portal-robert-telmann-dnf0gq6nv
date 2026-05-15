@@ -215,12 +215,20 @@ export function RelatoriosTab() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis
-                  tickFormatter={(v) => `R$ ${v / 1000}k`}
+                  tickFormatter={(v) =>
+                    new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                      maximumFractionDigits: 0,
+                    }).format(v)
+                  }
                   tickLine={false}
                   axisLine={false}
-                  width={80}
+                  width={100}
                 />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip
+                  content={<ChartTooltipContent formatter={(value: number) => formatBRL(value)} />}
+                />
                 <ChartLegend content={<ChartLegendContent />} />
                 <Line
                   type="monotone"

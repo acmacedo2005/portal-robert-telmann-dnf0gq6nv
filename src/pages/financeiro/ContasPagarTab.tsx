@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Search, Inbox, AlertCircle, Edit2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 const formatBRL = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
@@ -372,8 +373,8 @@ export function ContasPagarTab() {
               <Input name="fornecedor" required />
             </div>
             <div className="space-y-2">
-              <Label>Valor (R$) *</Label>
-              <Input type="number" step="0.01" name="valor" required />
+              <Label>Valor *</Label>
+              <CurrencyInput name="valor" defaultValue={0} />
             </div>
             <div className="space-y-2">
               <Label>Categoria *</Label>
@@ -409,14 +410,8 @@ export function ContasPagarTab() {
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Valor (R$) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                name="valor"
-                defaultValue={editingConta?.valor}
-                required
-              />
+              <Label>Valor *</Label>
+              <CurrencyInput name="valor" defaultValue={editingConta?.valor} />
             </div>
             <div className="space-y-2">
               <Label>Vencimento *</Label>
@@ -466,14 +461,8 @@ export function ContasPagarTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Valor Pago (R$) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                name="valor_pago"
-                defaultValue={selectedConta?.valor}
-                required
-              />
+              <Label>Valor Pago *</Label>
+              <CurrencyInput name="valor_pago" defaultValue={selectedConta?.valor} />
             </div>
             <div className="space-y-2">
               <Label>Método de Pagamento *</Label>

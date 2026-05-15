@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Search, Inbox, AlertCircle, Edit2 } from 'lucide-react'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 const formatBRL = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
@@ -149,6 +150,12 @@ export function FaturasTab() {
     const taxaPerc = isCard ? parseFloat((fd.get('taxa_percentual') as string) || '0') : 0
 
     const saldoAtual = selectedFatura.saldo_restante ?? selectedFatura.valor
+    if (valorRecebido <= 0) {
+      return toast.error('O valor recebido deve ser maior que zero.')
+    }
+    if (valorRecebido > saldoAtual) {
+      return toast.error(`O valor não pode ser maior que o saldo de ${formatBRL(saldoAtual)}.`)
+    }
     const isPartial = valorRecebido < saldoAtual
 
     const parcelasRest = isPartial ? parseInt((fd.get('parcelas_restantes') as string) || '0') : 0
@@ -447,16 +454,8 @@ export function FaturasTab() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Valor Recebido (R$) *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  max={saldoAtualModal}
-                  value={valorRecebido}
-                  onChange={(e) => setValorRecebido(parseFloat(e.target.value) || 0)}
-                  required
-                />
+                <Label>Valor Recebido *</Label>
+                <CurrencyInput value={valorRecebido} onValueChange={setValorRecebido} />
               </div>
               <div className="space-y-2">
                 <Label>Data do Pagamento *</Label>

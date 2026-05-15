@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-15T18:52:22.987Z",
+  "generatedAt": "2026-05-15T19:02:52.856Z",
   "collections": [
     {
       "name": "users",
@@ -1150,7 +1150,14 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["cartao", "dinheiro", "transferencia"]
+          "selectValues": [
+            "cartao",
+            "dinheiro",
+            "transferencia",
+            "pix",
+            "cartao_debito",
+            "cartao_credito"
+          ]
         },
         {
           "name": "observacoes",
