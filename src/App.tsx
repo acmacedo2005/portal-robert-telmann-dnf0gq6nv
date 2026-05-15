@@ -15,6 +15,8 @@ import AgendamentosList from './pages/agendamentos/AgendamentosList'
 import TratamentosList from './pages/tratamentos/TratamentosList'
 import VendasList from './pages/vendas/VendasList'
 import PacienteDetails from './pages/pacientes/PacienteDetails'
+import Parametrizacao from './pages/parametrizacao/Parametrizacao'
+import ComissoesReport from './pages/relatorios/ComissoesReport'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -33,6 +35,8 @@ const App = () => (
             <Route path="/agendamentos" element={<AgendamentosList />} />
             <Route path="/tratamentos" element={<TratamentosList />} />
             <Route path="/vendas" element={<VendasList />} />
+            <Route path="/parametrizacao" element={<Parametrizacao />} />
+            <Route path="/relatorios/comissoes" element={<ComissoesReport />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

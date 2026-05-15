@@ -1,6 +1,15 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import { LogOut, Home, Users, DollarSign, Menu, Calendar, ShoppingCart } from 'lucide-react'
+import {
+  LogOut,
+  Home,
+  Users,
+  DollarSign,
+  Menu,
+  Calendar,
+  ShoppingCart,
+  Settings,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -64,6 +73,18 @@ export default function Layout() {
       path: '/financeiro',
       icon: DollarSign,
       roles: ['admin', 'financeiro'],
+    },
+    {
+      name: 'Relatório Comissões',
+      path: '/relatorios/comissoes',
+      icon: DollarSign,
+      roles: ['admin', 'vendedor', 'financeiro'],
+    },
+    {
+      name: 'Parametrização',
+      path: '/parametrizacao',
+      icon: Settings,
+      roles: ['admin'],
     },
   ]
 
