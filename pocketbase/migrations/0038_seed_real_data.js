@@ -51,11 +51,17 @@ migrate(
     }
 
     const servicosCol = app.findCollectionByNameOrId('servicos')
-    const servicos = ['Cirurgia FUE', 'PRP', 'Mesoterapia', 'Retoque', 'Consulta']
+    const servicos = [
+      { nome: 'Cirurgia FUE', valor: 15000 },
+      { nome: 'PRP', valor: 1500 },
+      { nome: 'Mesoterapia', valor: 2000 },
+      { nome: 'Retoque', valor: 5000 },
+      { nome: 'Consulta', valor: 500 },
+    ]
     for (const s of servicos) {
       const rec = new Record(servicosCol)
-      rec.set('nome', s)
-      rec.set('valor_padrao', 0)
+      rec.set('nome', s.nome)
+      rec.set('valor_padrao', s.valor)
       rec.set('ativo', true)
       app.save(rec)
     }
