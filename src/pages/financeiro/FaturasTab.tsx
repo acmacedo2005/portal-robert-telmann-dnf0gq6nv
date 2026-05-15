@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getFaturas, updateFatura, type Fatura } from '@/services/faturas'
 import { createPagamento } from '@/services/pagamentos'
+import { createContaPagar } from '@/services/contas_pagar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +33,31 @@ const formatBRL = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
 const formatDt = (d?: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '-')
 
+const printReceipt = (fatura: Fatura, pagamento: any) => {
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(`
+    <html>
+      <head><title>Recibo de Pagamento</title></head>
+      <body style="font-family: sans-serif; padding: 40px; max-width: 800px; margin: auto; color: #333;">
+        <h2 style="text-align: center; color: #000;">Recibo de Pagamento</h2>
+        <hr style="border: 1px solid #ccc;" />
+        <br/>
+        <p><strong>Paciente:</strong> ${fatura.expand?.paciente_id?.nome || '-'}</p>
+        <p><strong>Valor Recebido:</strong> ${formatBRL(pagamento.valor_pago)}</p>
+        <p><strong>Data do Pagamento:</strong> ${formatDt(pagamento.data_pagamento)}</p>
+        <p><strong>Forma de Pagamento:</strong> <span style="text-transform: capitalize;">${pagamento.metodo.replace('_', ' ')}</span></p>
+        <p><strong>Observações:</strong> ${pagamento.observacoes || 'Nenhuma'}</p>
+        <br/><br/><br/><br/>
+        <p style="text-align: center;">_________________________________________</p>
+        <p style="text-align: center; font-size: 14px;">Assinatura do Responsável</p>
+      </body>
+    </html>
+  `)
+  win.document.close()
+  setTimeout(() => win.print(), 500)
+}
+
 export function FaturasTab() {
   const [faturas, setFaturas] = useState<Fatura[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +71,10 @@ export function FaturasTab() {
 
   const [selectedFatura, setSelectedFatura] = useState<Fatura | null>(null)
   const [editingFatura, setEditingFatura] = useState<Fatura | null>(null)
+
+  // Payment Modal State
+  const [valorRecebido, setValorRecebido] = useState<number>(0)
+  const [metodo, setMetodo] = useState('pix')
 
   const loadData = async () => {
     setLoading(true)
@@ -97,22 +127,75 @@ export function FaturasTab() {
       })
   }, [faturas, search, statusFilter, dateFrom, dateTo, sortBy])
 
+  useEffect(() => {
+    if (selectedFatura) {
+      setValorRecebido(selectedFatura.saldo_restante ?? selectedFatura.valor)
+      setMetodo('pix')
+    }
+  }, [selectedFatura])
+
   const handlePagamento = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!selectedFatura) return
     const fd = new FormData(e.currentTarget)
+
+    const dataPagamentoStr = fd.get('data_pagamento') as string
+    const dataPagamento = dataPagamentoStr
+      ? `${dataPagamentoStr} 12:00:00.000Z`
+      : new Date().toISOString()
+    const obs = fd.get('observacoes') as string
+
+    const isCard = metodo === 'cartao_credito' || metodo === 'cartao_debito'
+    const taxaPerc = isCard ? parseFloat((fd.get('taxa_percentual') as string) || '0') : 0
+
+    const saldoAtual = selectedFatura.saldo_restante ?? selectedFatura.valor
+    const isPartial = valorRecebido < saldoAtual
+
+    const parcelasRest = isPartial ? parseInt((fd.get('parcelas_restantes') as string) || '0') : 0
+    const dataProx = isPartial
+      ? `${fd.get('data_proximo_vencimento')} 12:00:00.000Z`
+      : selectedFatura.data_vencimento
+
     try {
-      const dtStr = fd.get('data_pagamento') as string
-      const dt = dtStr ? `${dtStr} 12:00:00.000Z` : new Date().toISOString()
-      await createPagamento({
+      const pag = await createPagamento({
         fatura_id: selectedFatura.id,
-        valor_pago: parseFloat(fd.get('valor_pago') as string),
-        data_pagamento: dt,
-        metodo: fd.get('metodo') as any,
-        observacoes: fd.get('observacoes') as string,
+        valor_pago: valorRecebido,
+        data_pagamento: dataPagamento,
+        metodo: metodo as any,
+        observacoes: obs,
       })
-      await updateFatura(selectedFatura.id, { status: 'paga', data_pagamento: dt })
-      toast.success('Pagamento registrado com sucesso')
+
+      const newValorPago = (selectedFatura.valor_pago || 0) + valorRecebido
+      const newSaldo = Math.max(0, saldoAtual - valorRecebido)
+      const newStatus = newSaldo <= 0 ? 'paga' : 'parcial'
+
+      await updateFatura(selectedFatura.id, {
+        status: newStatus,
+        valor_pago: newValorPago,
+        saldo_restante: newSaldo,
+        parcelas_restantes: parcelasRest,
+        data_vencimento: dataProx,
+        ...(newStatus === 'paga' ? { data_pagamento: dataPagamento } : {}),
+      })
+
+      if (isCard && taxaPerc > 0) {
+        const taxaVal = valorRecebido * (taxaPerc / 100)
+        await createContaPagar({
+          descricao: `Taxa Cartão - Fatura ${selectedFatura.id}`,
+          fornecedor: 'Operadora de Cartão',
+          valor: taxaVal,
+          status: 'paga',
+          categoria: 'taxas_cartao',
+          data_vencimento: dataPagamento,
+          data_pagamento: dataPagamento,
+          valor_pago: taxaVal,
+          metodo_pagamento: 'transferencia',
+        })
+      }
+
+      toast.success('Pagamento registrado', {
+        action: { label: 'Imprimir Recibo', onClick: () => printReceipt(selectedFatura, pag) },
+      })
       setSelectedFatura(null)
     } catch {
       toast.error('Erro ao registrar pagamento')
@@ -130,10 +213,10 @@ export function FaturasTab() {
         data_vencimento: dt,
         observacoes: fd.get('observacoes') as string,
       })
-      toast.success('Fatura atualizada com sucesso')
+      toast.success('Fatura atualizada')
       setEditingFatura(null)
     } catch {
-      toast.error('Erro ao atualizar fatura')
+      toast.error('Erro ao atualizar')
     }
   }
 
@@ -147,6 +230,10 @@ export function FaturasTab() {
         </Button>
       </div>
     )
+
+  const saldoAtualModal = selectedFatura?.saldo_restante ?? selectedFatura?.valor ?? 0
+  const isPartialModal = valorRecebido < saldoAtualModal
+  const isCardModal = metodo === 'cartao_credito' || metodo === 'cartao_debito'
 
   return (
     <div className="space-y-4">
@@ -167,6 +254,7 @@ export function FaturasTab() {
           <SelectContent>
             <SelectItem value="all">Todos Status</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
+            <SelectItem value="parcial">Parcial</SelectItem>
             <SelectItem value="vencida">Vencida</SelectItem>
             <SelectItem value="paga">Paga</SelectItem>
           </SelectContent>
@@ -234,10 +322,11 @@ export function FaturasTab() {
                 <TableRow>
                   <TableHead>Vencimento</TableHead>
                   <TableHead>Paciente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead>Entrada/Pago</TableHead>
+                  <TableHead>Saldo Restante</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Pagamento</TableHead>
+                  <TableHead>Parcelas</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -248,23 +337,28 @@ export function FaturasTab() {
                     <TableCell className="font-medium">
                       {f.expand?.paciente_id?.nome || 'N/A'}
                     </TableCell>
-                    <TableCell className="capitalize">{f.tipo_parcela}</TableCell>
                     <TableCell>{formatBRL(f.valor)}</TableCell>
+                    <TableCell>{formatBRL(f.valor_pago || 0)}</TableCell>
+                    <TableCell className="font-semibold text-primary">
+                      {formatBRL(f.saldo_restante ?? f.valor)}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
                           f.status === 'paga'
                             ? 'default'
-                            : f.status === 'vencida'
-                              ? 'destructive'
-                              : 'secondary'
+                            : f.status === 'parcial'
+                              ? 'outline'
+                              : f.status === 'vencida'
+                                ? 'destructive'
+                                : 'secondary'
                         }
                         className="capitalize"
                       >
                         {f.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{f.status === 'paga' ? formatDt(f.data_pagamento) : '-'}</TableCell>
+                    <TableCell>{f.parcelas_restantes || '-'}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button
                         size="icon"
@@ -301,27 +395,33 @@ export function FaturasTab() {
                       variant={
                         f.status === 'paga'
                           ? 'default'
-                          : f.status === 'vencida'
-                            ? 'destructive'
-                            : 'secondary'
+                          : f.status === 'parcial'
+                            ? 'outline'
+                            : f.status === 'vencida'
+                              ? 'destructive'
+                              : 'secondary'
                       }
                       className="capitalize"
                     >
                       {f.status}
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-end mt-4">
-                    <p className="font-bold text-lg">{formatBRL(f.valor)}</p>
-                    <div className="flex gap-2">
-                      <Button size="icon" variant="outline" onClick={() => setEditingFatura(f)}>
-                        <Edit2 className="h-4 w-4" />
+                  <div className="text-sm text-muted-foreground mb-4">
+                    Saldo:{' '}
+                    <span className="font-bold text-primary">
+                      {formatBRL(f.saldo_restante ?? f.valor)}
+                    </span>{' '}
+                    (de {formatBRL(f.valor)})
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button size="icon" variant="outline" onClick={() => setEditingFatura(f)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    {f.status !== 'paga' && (
+                      <Button size="sm" onClick={() => setSelectedFatura(f)}>
+                        Receber
                       </Button>
-                      {f.status !== 'paga' && (
-                        <Button size="sm" onClick={() => setSelectedFatura(f)}>
-                          Receber
-                        </Button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -331,9 +431,9 @@ export function FaturasTab() {
       )}
 
       <Dialog open={!!selectedFatura} onOpenChange={(v) => !v && setSelectedFatura(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registrar Pagamento</DialogTitle>
+            <DialogTitle>Registrar Recebimento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePagamento} className="space-y-4">
             <div className="p-3 bg-muted rounded-md text-sm mb-4">
@@ -341,44 +441,94 @@ export function FaturasTab() {
                 <strong>Paciente:</strong> {selectedFatura?.expand?.paciente_id?.nome}
               </p>
               <p>
-                <strong>Valor Devido:</strong> {formatBRL(selectedFatura?.valor || 0)}
+                <strong>Saldo Devido:</strong> {formatBRL(saldoAtualModal)}
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>Data do Pagamento *</Label>
-              <Input
-                type="date"
-                name="data_pagamento"
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                required
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor Recebido (R$) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={saldoAtualModal}
+                  value={valorRecebido}
+                  onChange={(e) => setValorRecebido(parseFloat(e.target.value) || 0)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data do Pagamento *</Label>
+                <Input
+                  type="date"
+                  name="data_pagamento"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Valor Pago (R$) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                name="valor_pago"
-                defaultValue={selectedFatura?.valor}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Método de Pagamento *</Label>
-              <Select name="metodo" defaultValue="transferencia" required>
+              <Label>Forma de Pagamento *</Label>
+              <Select value={metodo} onValueChange={setMetodo} required>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="transferencia">Transferência/PIX</SelectItem>
-                  <SelectItem value="cartao">Cartão</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                  <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="permuta">Permuta</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {isCardModal && (
+              <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/10">
+                <Label>Taxa do Cartão (%)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  name="taxa_percentual"
+                  placeholder="Ex: 2.5"
+                  defaultValue={0}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  O sistema irá deduzir essa taxa e criar uma despesa automaticamente.
+                </p>
+              </div>
+            )}
+
+            {isPartialModal && (
+              <div className="space-y-4 p-3 border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 rounded-md">
+                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-500">
+                  Pagamento Parcial Identificado
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Parcelas Restantes *</Label>
+                    <Input
+                      type="number"
+                      name="parcelas_restantes"
+                      required
+                      min={1}
+                      defaultValue={1}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Próximo Vencimento *</Label>
+                    <Input type="date" name="data_proximo_vencimento" required />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Observações</Label>
-              <Input name="observacoes" placeholder="Comprovante anexo..." />
+              <Input name="observacoes" placeholder="Comprovante anexo, notas..." />
             </div>
             <Button type="submit" className="w-full">
               Confirmar Pagamento
@@ -407,7 +557,7 @@ export function FaturasTab() {
               <Textarea
                 name="observacoes"
                 defaultValue={editingFatura?.observacoes}
-                placeholder="Notas internas sobre a fatura..."
+                placeholder="Notas internas..."
                 className="resize-none"
               />
             </div>

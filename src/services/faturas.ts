@@ -6,7 +6,10 @@ export interface Fatura extends RecordModel {
   valor: number
   data_vencimento: string
   data_pagamento?: string
-  status: 'pendente' | 'vencida' | 'paga'
+  status: 'pendente' | 'vencida' | 'paga' | 'parcial'
+  valor_pago?: number
+  saldo_restante?: number
+  parcelas_restantes?: number
   tipo_parcela: 'entrada' | 'saldo' | 'parcelada'
   numero_parcela?: number
   observacoes?: string

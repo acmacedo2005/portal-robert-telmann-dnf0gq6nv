@@ -197,6 +197,7 @@ export function ContasPagarTab() {
             <SelectItem value="fornecedores">Fornecedores</SelectItem>
             <SelectItem value="salarios">Salários</SelectItem>
             <SelectItem value="utilitarios">Utilitários</SelectItem>
+            <SelectItem value="taxas_cartao">Taxas de Cartão</SelectItem>
             <SelectItem value="outros">Outros</SelectItem>
           </SelectContent>
         </Select>
@@ -385,6 +386,7 @@ export function ContasPagarTab() {
                   <SelectItem value="fornecedores">Fornecedores</SelectItem>
                   <SelectItem value="salarios">Salários</SelectItem>
                   <SelectItem value="utilitarios">Utilitários</SelectItem>
+                  <SelectItem value="taxas_cartao">Taxas de Cartão</SelectItem>
                   <SelectItem value="outros">Outros</SelectItem>
                 </SelectContent>
               </Select>
@@ -480,8 +482,10 @@ export function ContasPagarTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="transferencia">Transferência/PIX</SelectItem>
-                  <SelectItem value="cartao">Cartão</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
                 </SelectContent>
               </Select>

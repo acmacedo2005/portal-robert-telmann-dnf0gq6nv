@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-15T17:00:47.117Z",
+  "generatedAt": "2026-05-15T18:52:22.987Z",
   "collections": [
     {
       "name": "users",
@@ -353,7 +353,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["pendente", "vencida", "paga"]
+          "selectValues": ["pendente", "vencida", "paga", "parcial"]
         },
         {
           "name": "tipo_parcela",
@@ -408,6 +408,24 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "valor_pago",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "saldo_restante",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "parcelas_restantes",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -447,7 +465,15 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["cartao", "dinheiro", "transferencia"]
+          "selectValues": [
+            "cartao",
+            "dinheiro",
+            "transferencia",
+            "pix",
+            "cartao_debito",
+            "cartao_credito",
+            "permuta"
+          ]
         },
         {
           "name": "observacoes",
@@ -1092,7 +1118,14 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["aluguel", "fornecedores", "salarios", "utilitarios", "outros"]
+          "selectValues": [
+            "aluguel",
+            "fornecedores",
+            "salarios",
+            "utilitarios",
+            "outros",
+            "taxas_cartao"
+          ]
         },
         {
           "name": "data_vencimento",

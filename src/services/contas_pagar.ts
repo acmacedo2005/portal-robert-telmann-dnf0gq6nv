@@ -6,7 +6,7 @@ export interface ContaPagar extends RecordModel {
   fornecedor: string
   valor: number
   status: 'pendente' | 'vencida' | 'paga'
-  categoria: 'aluguel' | 'fornecedores' | 'salarios' | 'utilitarios' | 'outros'
+  categoria: 'aluguel' | 'fornecedores' | 'salarios' | 'utilitarios' | 'taxas_cartao' | 'outros'
   data_vencimento: string
   data_pagamento?: string
   valor_pago?: number

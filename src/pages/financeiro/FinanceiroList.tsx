@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DollarSign } from 'lucide-react'
 import { FaturasTab } from './FaturasTab'
 import { ContasPagarTab } from './ContasPagarTab'
+import { RelatoriosTab } from './RelatoriosTab'
 
 export default function FinanceiroList() {
   return (
@@ -12,18 +13,23 @@ export default function FinanceiroList() {
         </h2>
       </div>
 
-      <Tabs defaultValue="pagar" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
+      <Tabs defaultValue="receber" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-[500px]">
           <TabsTrigger value="receber">Contas a Receber</TabsTrigger>
+          <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="receber" className="mt-6">
+          <FaturasTab />
+        </TabsContent>
 
         <TabsContent value="pagar" className="mt-6">
           <ContasPagarTab />
         </TabsContent>
 
-        <TabsContent value="receber" className="mt-6">
-          <FaturasTab />
+        <TabsContent value="relatorios" className="mt-6">
+          <RelatoriosTab />
         </TabsContent>
       </Tabs>
     </div>
