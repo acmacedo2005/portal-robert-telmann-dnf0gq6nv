@@ -29,6 +29,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { Plus, Edit, Trash2, AlertCircle, FolderDot } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function CategoriasTab() {
   const [categorias, setCategorias] = useState<any[]>([])
@@ -63,6 +64,8 @@ export default function CategoriasTab() {
   useEffect(() => {
     loadData()
   }, [])
+  useRealtime('categorias_financeiras', loadData)
+  useRealtime('formas_pagamento', loadData)
 
   const handleSave = async () => {
     const col = activeTab === 'despesas' ? 'categorias_financeiras' : 'formas_pagamento'

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
 import { Settings, Save } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function ConfiguracoesTab() {
   const [formData, setFormData] = useState<any>({
@@ -18,7 +19,7 @@ export default function ConfiguracoesTab() {
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
-  useEffect(() => {
+  const loadConfig = () => {
     pb.collection('configuracoes_gerais')
       .getFullList()
       .then((res) => {
@@ -26,7 +27,12 @@ export default function ConfiguracoesTab() {
       })
       .catch(() => toast({ title: 'Erro ao carregar configurações', variant: 'destructive' }))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadConfig()
   }, [toast])
+  useRealtime('configuracoes_gerais', loadConfig)
 
   const handleSave = async () => {
     try {
@@ -64,7 +70,7 @@ export default function ConfiguracoesTab() {
           <Label>Comissão Padrão do Vendedor (%)</Label>
           <Input
             type="number"
-            step="0.1"
+            step="0.01"
             value={formData.comissao_padrao || ''}
             onChange={(e) => setFormData({ ...formData, comissao_padrao: Number(e.target.value) })}
             placeholder="Ex: 10"

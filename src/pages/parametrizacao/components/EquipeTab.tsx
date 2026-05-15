@@ -61,6 +61,7 @@ export default function EquipeTab() {
   useEffect(() => {
     loadData()
   }, [])
+  useRealtime('users', loadData)
 
   const resetForm = () =>
     setFormData({
@@ -167,7 +168,13 @@ export default function EquipeTab() {
                   {(u.especialidade === 'vendedor' || u.papel === 'vendedor') && (
                     <div className="text-sm">
                       <span className="text-muted-foreground">Comissão: </span>
-                      <span>{u.comissao_padrao || 0}%</span>
+                      <span>
+                        {Number(u.comissao_padrao || 0).toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                        %
+                      </span>
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
@@ -219,7 +226,7 @@ export default function EquipeTab() {
                     <TableCell className="capitalize">{u.especialidade || u.papel}</TableCell>
                     <TableCell>
                       {u.especialidade === 'vendedor' || u.papel === 'vendedor'
-                        ? `${u.comissao_padrao || 0}%`
+                        ? `${Number(u.comissao_padrao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
                         : '-'}
                     </TableCell>
                     <TableCell>
@@ -307,6 +314,7 @@ export default function EquipeTab() {
                 <Label>Comissão (%)</Label>
                 <Input
                   type="number"
+                  step="0.01"
                   value={formData.comissao_padrao || 0}
                   onChange={(e) =>
                     setFormData({ ...formData, comissao_padrao: Number(e.target.value) })

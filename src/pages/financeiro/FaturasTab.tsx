@@ -31,7 +31,12 @@ import { Search, Inbox, AlertCircle, Edit2 } from 'lucide-react'
 import { CurrencyInput } from '@/components/ui/currency-input'
 
 const formatBRL = (val: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val || 0)
 const formatDt = (d?: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '-')
 
 const printReceipt = (fatura: Fatura, pagamento: any) => {

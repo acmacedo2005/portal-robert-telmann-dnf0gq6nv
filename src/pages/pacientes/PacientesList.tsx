@@ -54,6 +54,7 @@ export default function PacientesList() {
       endereco: formData.get('endereco') as string,
       cidade: formData.get('cidade') as string,
       estado: formData.get('estado') as string,
+      genero: formData.get('genero') as string,
     }
 
     try {
@@ -110,10 +111,14 @@ export default function PacientesList() {
                 <Label>Nome Completo *</Label>
                 <Input name="nome" required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>CPF</Label>
                   <Input name="cpf" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Gênero</Label>
+                  <Input name="genero" placeholder="M/F/Outro" />
                 </div>
                 <div className="space-y-2">
                   <Label>Data Nascimento</Label>
@@ -158,6 +163,7 @@ export default function PacientesList() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>CPF</TableHead>
+              <TableHead>Gênero</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Cidade</TableHead>
             </TableRow>
@@ -171,6 +177,7 @@ export default function PacientesList() {
               >
                 <TableCell className="font-medium">{p.nome}</TableCell>
                 <TableCell>{p.cpf || '-'}</TableCell>
+                <TableCell>{(p as any).genero || '-'}</TableCell>
                 <TableCell>{p.telefone || '-'}</TableCell>
                 <TableCell>{p.cidade ? `${p.cidade}/${p.estado}` : '-'}</TableCell>
               </TableRow>

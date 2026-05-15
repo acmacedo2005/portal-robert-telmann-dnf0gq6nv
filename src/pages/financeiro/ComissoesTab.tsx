@@ -18,7 +18,12 @@ import { Check, Frown } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 const formatCurrency = (val: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val || 0)
 
 export function ComissoesTab() {
   const [comissoes, setComissoes] = useState<any[]>([])
@@ -116,8 +121,16 @@ export function ComissoesTab() {
                   <TableCell className="font-medium text-zinc-600">
                     {c.expand?.venda_id?.expand?.paciente_id?.nome || 'N/A'}
                   </TableCell>
-                  <TableCell>{format(new Date(c.data_calculo), 'dd/MM/yyyy')}</TableCell>
-                  <TableCell className="text-right">{c.percentual_comissao}%</TableCell>
+                  <TableCell>
+                    {c.data_calculo.slice(0, 10).split('-').reverse().join('/')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(c.percentual_comissao).toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    %
+                  </TableCell>
                   <TableCell className="text-right font-bold text-green-600">
                     {formatCurrency(c.valor_comissao)}
                   </TableCell>

@@ -25,7 +25,12 @@ import { createContaPagar } from '@/services/contas_pagar'
 import { updateVenda } from '@/services/vendas'
 
 const formatCurrency = (val: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val || 0)
 
 export function ParcelasModal({ venda, isOpen, onClose }: any) {
   const [parcelas, setParcelas] = useState<any[]>([])
@@ -112,7 +117,7 @@ export function ParcelasModal({ venda, isOpen, onClose }: any) {
         ? `
       <h3>Próximas Parcelas</h3>
       <ul>
-        ${future.map((p) => `<li>Parcela ${p.numero_parcela}: R$ ${p.valor_parcela.toFixed(2)} - Vencimento: ${format(new Date(p.data_vencimento), 'dd/MM/yyyy')}</li>`).join('')}
+        ${future.map((p) => `<li>Parcela ${p.numero_parcela}: R$ ${p.valor_parcela.toFixed(2)} - Vencimento: ${p.data_vencimento.slice(0, 10).split('-').reverse().join('/')}</li>`).join('')}
       </ul>
     `
         : '<p>Não há parcelas futuras.</p>'
@@ -178,7 +183,9 @@ export function ParcelasModal({ venda, isOpen, onClose }: any) {
               {parcelas.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-bold">{p.numero_parcela}</TableCell>
-                  <TableCell>{format(new Date(p.data_vencimento), 'dd/MM/yyyy')}</TableCell>
+                  <TableCell>
+                    {p.data_vencimento.slice(0, 10).split('-').reverse().join('/')}
+                  </TableCell>
                   <TableCell className="uppercase text-xs font-semibold text-zinc-500">
                     {p.forma_pagamento}
                   </TableCell>

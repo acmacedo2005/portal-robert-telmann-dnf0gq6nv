@@ -50,7 +50,12 @@ export default function VendasList() {
 
   const formatCurrency = (value: number | undefined) => {
     if (value === undefined || value === null) return 'R$ 0,00'
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
   }
 
   return (
@@ -122,7 +127,7 @@ export default function VendasList() {
                   <TableCell>{formatCurrency(v.valor_total)}</TableCell>
                   <TableCell>{formatCurrency(v.entrada_paga)}</TableCell>
                   <TableCell>{formatCurrency(v.saldo_restante)}</TableCell>
-                  <TableCell>{new Date(v.data_venda).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell>{v.data_venda.slice(0, 10).split('-').reverse().join('/')}</TableCell>
                   <TableCell className="capitalize">{v.status}</TableCell>
                   <TableCell>
                     <Button

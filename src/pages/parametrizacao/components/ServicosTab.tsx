@@ -29,6 +29,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Plus, Edit, Trash2, AlertCircle, Syringe } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function ServicosTab() {
   const [servicos, setServicos] = useState<any[]>([])
@@ -61,6 +62,7 @@ export default function ServicosTab() {
   useEffect(() => {
     loadData()
   }, [])
+  useRealtime('servicos', loadData)
 
   const handleSave = async () => {
     try {
@@ -92,7 +94,12 @@ export default function ServicosTab() {
   }
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+    new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(val || 0)
 
   if (loading)
     return (
