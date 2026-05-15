@@ -185,7 +185,7 @@ migrate(
         valor_total: 18000,
         entrada_paga: 8000,
         obs: 'Cirurgia FUT',
-        forma_entrada: 'transferencia',
+        forma_entrada: 'pix',
         forma_parcelas: 'cartao_credito',
       },
       {
