@@ -31,6 +31,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
@@ -46,6 +55,7 @@ import {
   CalendarIcon,
   LayoutList,
   CalendarDays,
+  Filter,
 } from 'lucide-react'
 import {
   format,
@@ -71,6 +81,14 @@ import { useAuth } from '@/hooks/use-auth'
 import { AgendamentoForm } from './components/AgendamentoForm'
 import { AgendamentoEditForm } from './components/AgendamentoEditForm'
 
+const availableFilterTypes = [
+  { id: 'cirurgia', label: 'Cirurgia' },
+  { id: 'tratamento', label: 'Tratamento' },
+  { id: 'cirurgia_tratamento', label: 'Cirurgia + Tratamento' },
+  { id: 'avaliacao', label: 'Avaliação' },
+  { id: 'retorno', label: 'Retorno' },
+]
+
 export default function AgendamentosList() {
   const { user } = useAuth()
   const canManage = ['admin', 'vendedor', 'enfermagem'].includes(user?.papel || '')
@@ -84,7 +102,7 @@ export default function AgendamentosList() {
   const [search, setSearch] = useState('')
   const [filterTipos, setFilterTipos] = useState<string[]>([])
   const [filterStatus, setFilterStatus] = useState<string>('todos')
-  const [sortBy, setSortBy] = useState('data')
+  const [sortBy, setSortBy] = useState('data_desc')
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<'dia' | 'semana' | 'mes'>('mes')
@@ -94,18 +112,14 @@ export default function AgendamentosList() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingAgendamento, setEditingAgendamento] = useState<RecordModel | null>(null)
 
-  const availableTypes = ['cirurgia', 'tratamento', 'avaliacao', 'retorno']
-
   const loadData = async () => {
     try {
       setError(false)
       const [a, p, pr] = await Promise.all([
-        pb
-          .collection('agendamentos')
-          .getFullList({
-            expand: 'paciente_id,profissional_id,saldo_tratamento_id',
-            sort: '-data_agendamento',
-          }),
+        pb.collection('agendamentos').getFullList({
+          expand: 'paciente_id,profissional_id,saldo_tratamento_id',
+          sort: '-data_agendamento',
+        }),
         pb.collection('pacientes').getFullList({ sort: 'nome' }),
         pb
           .collection('users')
@@ -180,17 +194,34 @@ export default function AgendamentosList() {
         !(a.expand?.paciente_id?.nome?.toLowerCase() || '').includes(search.toLowerCase())
       )
         return false
+
       if (filterTipos.length > 0) {
-        const isTratamento = ['aplicacao', 'meso', 'prp', 'botox'].includes(a.tipo)
-        if (!filterTipos.includes(a.tipo) && !(filterTipos.includes('tratamento') && isTratamento))
-          return false
+        let matches = false
+        if (filterTipos.includes('cirurgia') && a.tipo === 'cirurgia') matches = true
+        if (
+          filterTipos.includes('tratamento') &&
+          ['aplicacao', 'meso', 'prp', 'botox'].includes(a.tipo)
+        )
+          matches = true
+        if (
+          filterTipos.includes('cirurgia_tratamento') &&
+          ['cirurgia', 'aplicacao'].includes(a.tipo)
+        )
+          matches = true
+        if (filterTipos.includes('avaliacao') && a.tipo === 'avaliacao') matches = true
+        if (filterTipos.includes('retorno') && a.tipo === 'retorno') matches = true
+        if (!matches) return false
       }
+
       if (filterStatus !== 'todos' && a.status !== filterStatus) return false
       return true
     })
+
     list.sort((a, b) => {
-      if (sortBy === 'data')
+      if (sortBy === 'data_desc')
         return new Date(b.data_agendamento).getTime() - new Date(a.data_agendamento).getTime()
+      if (sortBy === 'data_asc')
+        return new Date(a.data_agendamento).getTime() - new Date(b.data_agendamento).getTime()
       if (sortBy === 'paciente')
         return (a.expand?.paciente_id?.nome || '').localeCompare(b.expand?.paciente_id?.nome || '')
       if (sortBy === 'tipo') return a.tipo.localeCompare(b.tipo)
@@ -198,6 +229,7 @@ export default function AgendamentosList() {
         return (a.expand?.profissional_id?.name || '').localeCompare(
           b.expand?.profissional_id?.name || '',
         )
+      if (sortBy === 'status') return a.status.localeCompare(b.status)
       return 0
     })
     return list
@@ -215,6 +247,14 @@ export default function AgendamentosList() {
     if (status === 'rascunho')
       return { bg: 'bg-zinc-400', text: 'text-white', border: 'border-zinc-500' }
     return { bg: 'bg-primary', text: 'text-primary-foreground', border: 'border-primary/80' }
+  }
+
+  const formatTipoDisplay = (t: string) => {
+    if (['aplicacao', 'meso', 'prp', 'botox'].includes(t)) return 'Tratamento'
+    if (t === 'avaliacao') return 'Avaliação'
+    if (t === 'cirurgia') return 'Cirurgia'
+    if (t === 'retorno') return 'Retorno'
+    return t
   }
 
   const openEdit = (a: RecordModel) => {
@@ -248,9 +288,9 @@ export default function AgendamentosList() {
 
   if (error)
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center border rounded-lg bg-white dark:bg-zinc-900 shadow-sm">
+      <div className="flex flex-col items-center justify-center p-12 text-center border rounded-lg bg-white dark:bg-zinc-900 shadow-sm animate-fade-in">
         <AlertCircle className="w-12 h-12 mb-4 text-destructive" />
-        <h2 className="text-xl font-bold mb-2">Falha ao acessar os dados</h2>
+        <h2 className="text-xl font-bold mb-2">Ocorreu um erro ao carregar os dados</h2>
         <Button onClick={loadData} className="font-bold mt-4">
           Tentar novamente
         </Button>
@@ -273,7 +313,7 @@ export default function AgendamentosList() {
                 <Plus className="mr-2 h-4 w-4" /> Novo Agendamento
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold">Novo Agendamento</DialogTitle>
               </DialogHeader>
@@ -292,18 +332,33 @@ export default function AgendamentosList() {
 
       <Card className="bg-white dark:bg-zinc-900 shadow-sm">
         <CardContent className="p-4 space-y-4">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+          <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
-                <SelectTrigger className="w-[120px] font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dia">Dia</SelectItem>
-                  <SelectItem value="semana">Semana</SelectItem>
-                  <SelectItem value="mes">Mês</SelectItem>
-                </SelectContent>
-              </Select>
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(v) => v && setViewMode(v as any)}
+                className="bg-zinc-100 dark:bg-zinc-800 p-1 rounded-md border h-10"
+              >
+                <ToggleGroupItem
+                  value="dia"
+                  className="h-full px-3 font-bold text-xs data-[state=on]:bg-white dark:data-[state=on]:bg-zinc-950 data-[state=on]:shadow-sm rounded-sm"
+                >
+                  Dia
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="semana"
+                  className="h-full px-3 font-bold text-xs data-[state=on]:bg-white dark:data-[state=on]:bg-zinc-950 data-[state=on]:shadow-sm rounded-sm"
+                >
+                  Semana
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="mes"
+                  className="h-full px-3 font-bold text-xs data-[state=on]:bg-white dark:data-[state=on]:bg-zinc-950 data-[state=on]:shadow-sm rounded-sm"
+                >
+                  Mês
+                </ToggleGroupItem>
+              </ToggleGroup>
               <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-md p-1 border">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrev}>
                   <ChevronLeft className="h-4 w-4" />
@@ -349,9 +404,39 @@ export default function AgendamentosList() {
                 </div>
               )}
             </div>
-            <div className="flex gap-2 w-full md:w-auto">
+            <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="font-bold border-dashed w-full sm:w-auto justify-start"
+                  >
+                    <Filter className="mr-2 h-4 w-4" /> Tipos
+                    {filterTipos.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 rounded-sm px-1 font-normal">
+                        {filterTipos.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Filtrar Tipos</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {availableFilterTypes.map((t) => (
+                    <DropdownMenuCheckboxItem
+                      key={t.id}
+                      checked={filterTipos.includes(t.id)}
+                      onCheckedChange={() => toggleTypeFilter(t.id)}
+                      className="font-medium cursor-pointer"
+                    >
+                      {t.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full md:w-[150px] font-bold">
+                <SelectTrigger className="w-full sm:w-[150px] font-bold">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -361,20 +446,23 @@ export default function AgendamentosList() {
                   <SelectItem value="cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
+
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full md:w-[150px] font-bold">
+                <SelectTrigger className="w-full sm:w-[190px] font-bold">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="data">Data</SelectItem>
-                  <SelectItem value="paciente">Paciente</SelectItem>
+                  <SelectItem value="data_desc">Data (Mais recentes)</SelectItem>
+                  <SelectItem value="data_asc">Data (Mais antigos)</SelectItem>
+                  <SelectItem value="paciente">Paciente (A-Z)</SelectItem>
                   <SelectItem value="tipo">Tipo</SelectItem>
                   <SelectItem value="profissional">Profissional</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center pt-2">
+          <div className="flex items-center pt-2">
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
               <Input
@@ -384,37 +472,18 @@ export default function AgendamentosList() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex flex-wrap gap-2 items-center flex-1">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 mr-1 hidden sm:block">
-                Filtrar:
-              </span>
-              <ScrollArea className="w-[calc(100vw-2rem)] sm:w-auto whitespace-nowrap pb-2 sm:pb-0">
-                <div className="flex gap-2">
-                  {availableTypes.map((t) => (
-                    <Badge
-                      key={t}
-                      variant="outline"
-                      className={`cursor-pointer capitalize px-3 py-1.5 font-bold transition-all shadow-sm ${filterTipos.includes(t) ? 'bg-primary text-primary-foreground scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:border-primary'}`}
-                      onClick={() => toggleTypeFilter(t)}
-                    >
-                      {t}
-                    </Badge>
-                  ))}
-                </div>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {loading ? (
         <div className="space-y-4">
-          <Skeleton className="h-[72px] w-full" />
-          <Skeleton className="h-[72px] w-full" />
+          <Skeleton className="h-[72px] w-full rounded-xl" />
+          <Skeleton className="h-[72px] w-full rounded-xl" />
+          <Skeleton className="h-[72px] w-full rounded-xl" />
         </div>
       ) : filteredAgendamentos.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center py-16 text-zinc-500 border-dashed border-2 shadow-none">
+        <Card className="flex flex-col items-center justify-center py-16 text-zinc-500 border-dashed border-2 shadow-none animate-fade-in">
           <CalendarX className="h-12 w-12 mb-4 text-zinc-400" />
           <p className="text-lg font-bold">Nenhum agendamento</p>
           <p className="text-sm font-medium mt-1 mb-6">
@@ -430,7 +499,7 @@ export default function AgendamentosList() {
           )}
         </Card>
       ) : (
-        <>
+        <div className="animate-fade-in">
           {displayStyle === 'calendar' && viewMode === 'mes' ? (
             <div className="grid grid-cols-7 gap-px bg-zinc-200 dark:bg-zinc-800 rounded-xl overflow-hidden shadow-sm">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
@@ -511,7 +580,9 @@ export default function AgendamentosList() {
                             <TableCell className="font-bold truncate max-w-[200px]">
                               {a.expand?.paciente_id?.nome}
                             </TableCell>
-                            <TableCell className="capitalize font-bold text-xs">{a.tipo}</TableCell>
+                            <TableCell className="capitalize font-bold text-xs">
+                              {formatTipoDisplay(a.tipo)}
+                            </TableCell>
                             <TableCell className="font-semibold text-sm">
                               {a.expand?.profissional_id?.name || a.expand?.profissional_id?.nome}
                             </TableCell>
@@ -584,9 +655,11 @@ export default function AgendamentosList() {
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
                               <span className="block text-[10px] font-bold uppercase text-zinc-400">
-                                Tratamento
+                                Tipo
                               </span>
-                              <span className="capitalize font-bold">{a.tipo}</span>
+                              <span className="capitalize font-bold">
+                                {formatTipoDisplay(a.tipo)}
+                              </span>
                             </div>
                             <div>
                               <span className="block text-[10px] font-bold uppercase text-zinc-400">
@@ -627,7 +700,7 @@ export default function AgendamentosList() {
               </ScrollArea>
             </>
           )}
-        </>
+        </div>
       )}
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
