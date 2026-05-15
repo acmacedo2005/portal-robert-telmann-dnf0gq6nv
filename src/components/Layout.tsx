@@ -81,7 +81,7 @@ export default function Layout() {
       roles: ['admin', 'vendedor', 'financeiro'],
     },
     {
-      name: 'Parametrização',
+      name: 'Configurações',
       path: '/parametrizacao',
       icon: Settings,
       roles: ['admin'],

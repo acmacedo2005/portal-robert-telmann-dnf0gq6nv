@@ -7,7 +7,7 @@ import ConfiguracoesTab from './components/ConfiguracoesTab'
 export default function Parametrizacao() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Parametrização</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
       <Tabs defaultValue="equipe" className="space-y-4">
         <TabsList className="bg-white dark:bg-zinc-900 border">
           <TabsTrigger value="equipe">Equipe</TabsTrigger>
