@@ -8,6 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import NovaVendaDialog from './NovaVendaDialog'
 import ParcelasViewDialog from './ParcelasViewDialog'
@@ -15,19 +17,41 @@ import { Plus } from 'lucide-react'
 
 export default function VendasList() {
   const [vendas, setVendas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [novaOpen, setNovaOpen] = useState(false)
   const [parcelasOpen, setParcelasOpen] = useState(false)
   const [selectedVenda, setSelectedVenda] = useState<string>('')
+  const { toast } = useToast()
 
   const load = async () => {
-    const res = await pb
-      .collection('vendas')
-      .getFullList({ expand: 'paciente_id,vendedor_id', sort: '-created' })
-    setVendas(res)
+    try {
+      setLoading(true)
+      const res = await pb
+        .collection('vendas')
+        .getFullList({ expand: 'paciente_id,vendedor_id', sort: '-created', requestKey: null })
+      setVendas(res)
+    } catch (error: any) {
+      if (!error.isAbort) {
+        console.error('Failed to load vendas:', error)
+        toast({
+          title: 'Erro ao carregar vendas',
+          description: error.message || 'Ocorreu um erro ao buscar os dados.',
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setLoading(false)
+    }
   }
+
   useEffect(() => {
     load()
   }, [])
+
+  const formatCurrency = (value: number | undefined) => {
+    if (value === undefined || value === null) return 'R$ 0,00'
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
 
   return (
     <div className="space-y-4">
@@ -53,7 +77,36 @@ export default function VendasList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {vendas.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[150px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[100px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[80px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[80px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[80px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[80px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-[60px]" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-8 w-[80px]" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : vendas.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Nenhuma venda encontrada.
@@ -64,12 +117,12 @@ export default function VendasList() {
                 <TableRow key={v.id}>
                   <TableCell>{v.expand?.paciente_id?.nome}</TableCell>
                   <TableCell>
-                    {v.expand?.vendedor_id?.nome || v.expand?.vendedor_id?.name}
+                    {v.expand?.vendedor_id?.nome || v.expand?.vendedor_id?.name || '-'}
                   </TableCell>
-                  <TableCell>R$ {v.valor_total}</TableCell>
-                  <TableCell>R$ {v.entrada_paga}</TableCell>
-                  <TableCell>R$ {v.saldo_restante}</TableCell>
-                  <TableCell>{new Date(v.data_venda).toLocaleDateString()}</TableCell>
+                  <TableCell>{formatCurrency(v.valor_total)}</TableCell>
+                  <TableCell>{formatCurrency(v.entrada_paga)}</TableCell>
+                  <TableCell>{formatCurrency(v.saldo_restante)}</TableCell>
+                  <TableCell>{new Date(v.data_venda).toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="capitalize">{v.status}</TableCell>
                   <TableCell>
                     <Button

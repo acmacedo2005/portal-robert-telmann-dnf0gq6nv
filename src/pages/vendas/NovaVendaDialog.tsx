@@ -104,15 +104,13 @@ export default function NovaVendaDialog({ open, setOpen, onSave }: any) {
         status: 'pendente',
         data_calculo: new Date().toISOString(),
       })
-      await pb
-        .collection('faturas')
-        .create({
-          paciente_id: form.paciente_id,
-          valor: form.valor_total,
-          data_vencimento: new Date().toISOString(),
-          status: 'pendente',
-          venda_id: v.id,
-        })
+      await pb.collection('faturas').create({
+        paciente_id: form.paciente_id,
+        valor: form.valor_total,
+        data_vencimento: new Date().toISOString(),
+        status: 'pendente',
+        venda_id: v.id,
+      })
       toast({ title: 'Operação realizada com sucesso' })
       setOpen(false)
       onSave()
