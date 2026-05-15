@@ -1,16 +1,6 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import {
-  LogOut,
-  Home,
-  Users,
-  Activity,
-  DollarSign,
-  Menu,
-  Calendar,
-  Pill,
-  ShoppingCart,
-} from 'lucide-react'
+import { LogOut, Home, Users, DollarSign, Menu, Calendar, ShoppingCart } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -68,18 +58,6 @@ export default function Layout() {
       path: '/vendas',
       icon: ShoppingCart,
       roles: ['admin', 'vendedor'],
-    },
-    {
-      name: 'Tratamentos',
-      path: '/tratamentos',
-      icon: Pill,
-      roles: ['admin', 'vendedor'],
-    },
-    {
-      name: 'Cirurgias',
-      path: '/cirurgias',
-      icon: Activity,
-      roles: ['admin', 'medico'],
     },
     {
       name: 'Financeiro',
