@@ -1,0 +1,141 @@
+id_produto,nome,descricao,valor_padrao,categoria,ativo
+PROD-0001,"Mesoterapia e PRP,,,Outras,,,,,,,,,3202391,true",,0.00,outro,sim
+PROD-0002,"Consulta,,,Outras,,,,,,,,,3202391,true",,0.00,outro,sim
+PROD-0003,"Transplante de Sobrancelha,,,Outras,,,,,,,,,3202391,true",,0.00,outro,sim
+PROD-0004,"TRANSPLANTE CAPILAR,,,Outras,,,,,,,,,3202391,true",,0.00,outro,sim
+PROD-0005,"Azul de Metileno,,1004,MEDICAÃ‡ÃƒO,0.000000,,R$ 33.95,,,,,,3202391,true",,0.00,outro,sim
+PROD-0006,"Midazolam 15mg,,1017,MEDICAÃ‡ÃƒO,0.000000,,R$ 60.49,,,,,,3202391,true",,0.00,outro,sim
+PROD-0007,"Dipirona 1ml,,1026,MEDICAÃ‡ÃƒO,0.000000,,R$ 0.60,,,,,,3202391,true",,0.00,outro,sim
+PROD-0008,"Agulha 13x0,30,,1032,INSUMOS,0.000000,,R$ 0.24,,,,,,3202391,true",,0.00,outro,sim
+PROD-0009,"Saco de Lixo Infectante 100L,,1075,INSUMOS,0.000000,,R$ 0.79,,,,,,3202391,true",,0.00,outro,sim
+PROD-0010,"Avental Descartavel,,1037,INSUMOS,0.000000,,R$ 2.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0011,"Micropore Grande,,1070,INSUMOS,0.000000,,R$ 8.29,,,,,,3202391,true",,0.00,outro,sim
+PROD-0012,"Seringa 20ml,,1077,INSUMOS,0.000000,,R$ 0.54,,,,,,3202391,true",,0.00,outro,sim
+PROD-0013,"Tubo Coleta Soro (vermelho),,1087,INSUMOS,0.000000,,R$ 1.03,,,,,,3202391,true",,0.00,outro,sim
+PROD-0014,"Dorflex,,1010,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.59,,,,,,3202391,true",,0.00,outro,sim
+PROD-0015,"Ropi 7.5mg/ml - 20ml,,1022,MEDICAÃ‡ÃƒO,0.000000,,R$ 39.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0016,"Pano para Limpar a Maca,,1072,INSUMOS,0.000000,,R$ 0.13,,,,,,3202391,true",,0.00,outro,sim
+PROD-0017,"PropÃ©,,1074,INSUMOS,0.000000,,R$ 0.09,,,,,,3202391,true",,0.00,outro,sim
+PROD-0018,"Removedor,,1102,LIMPEZA,0.000000,,R$ 13.75,,,,,,3202391,true",,0.00,outro,sim
+PROD-0019,"Suco,,1107,COPA E COZINHA,0.000000,,R$ 28.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0020,"Papel Toalha,,1116,COPA E COZINHA,0.000000,,R$ 4.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0021,"Flumazenil 0,1mg,,1012,MEDICAÃ‡ÃƒO,0.000000,,R$ 8.62,,,,,,3202391,true",,0.00,outro,sim
+PROD-0022,"Lidocaina 2% S/Vaso,,1014,MEDICAÃ‡ÃƒO,0.000000,,R$ 7.53,,,,,,3202391,true",,0.00,outro,sim
+PROD-0023,"Pomada Nebacetin,,1021,MEDICAÃ‡ÃƒO,0.000000,,R$ 12.39,,,,,,3202391,true",,0.00,outro,sim
+PROD-0024,"Dutasterida 0,1% 1ml (Meso),,1028,MEDICAÃ‡ÃƒO,0.000000,,R$ 11.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0025,"Blades 1.1,,1041,INSUMOS,0.000000,,R$ 9.20,,,,,,3202391,true",,0.00,outro,sim
+PROD-0026,"Eletrodos ECG,,1051,INSUMOS,0.000000,,R$ 16.37,,,,,,3202391,true",,0.00,outro,sim
+PROD-0027,"Papel cai cai,,1117,COPA E COZINHA,0.000000,,R$ 5.05,,,,,,3202391,true",,0.00,outro,sim
+PROD-0028,"Shampoo Neutro,,1120,INSUMOS,0.000000,,R$ 30.29,,,,,,3202391,true",,0.00,outro,sim
+PROD-0029,"Ãgua sanitÃ¡ria 5L,,1097,LIMPEZA,0.000000,R$ 0.00,R$ 19.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0030,"Tubo Coleta Edta (roxo),,1086,INSUMOS,0.000000,,R$ 0.73,,,,,,3202391,true",,0.00,outro,sim
+PROD-0031,"Campo Esteril 120x140,,1089,INSUMOS,0.000000,,R$ 8.95,,,,,,3202391,true",,0.00,outro,sim
+PROD-0032,"Ãlcool 70% 1L,,1035,INSUMOS,0.000000,R$ 0.00,R$ 8.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0033,"Equipo Macrogotas,,1056,INSUMOS,0.000000,,R$ 1.23,,,,,,3202391,true",,0.00,outro,sim
+PROD-0034,"LÃ¢mina de Lapidar,,1064,INSUMOS,0.000000,,R$ 0.49,,,,,,3202391,true",,0.00,outro,sim
+PROD-0035,"Dramin,,1009,MEDICAÃ‡ÃƒO,0.000000,,R$ 0.65,,,,,,3202391,true",,0.00,outro,sim
+PROD-0036,"Glicose 50%,,1013,MEDICAÃ‡ÃƒO,0.000000,,R$ 0.73,,,,,,3202391,true",,0.00,outro,sim
+PROD-0037,"Blades 0.9,,1039,INSUMOS,0.000000,,R$ 9.20,,,,,,3202391,true",,0.00,outro,sim
+PROD-0038,"Ãgua para injeÃ§Ã£o,,1001,MEDICAÃ‡ÃƒO,0.000000,R$ 0.00,R$ 1.98,,,,,,3202391,true",,0.00,outro,sim
+PROD-0039,"Seringa 1ml,,1123,INSUMOS,2.000000,,R$ 36.15,,,,,,3202391,true",,0.00,outro,sim
+PROD-0040,"Luva Procedimento,,1068,INSUMOS,0.000000,,R$ 0.57,,,,,,3202391,true",,0.00,outro,sim
+PROD-0041,"Papel sulfite,,1110,PAPELARIA,0.000000,,R$ 0.37,,,,,,3202391,true",,0.00,outro,sim
+PROD-0042,"Bubina ECG,,1044,INSUMOS,0.000000,,R$ 12.26,,,,,,3202391,true",,0.00,outro,sim
+PROD-0043,"Embalagem autoclavante P (09x26),,1054,INSUMOS,0.000000,,R$ 0.24,,,,,,3202391,true",,0.00,outro,sim
+PROD-0044,"Lidocaina Topica,,1015,MEDICAÃ‡ÃƒO,0.000000,,R$ 25.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0045,"Blood stop,,1043,INSUMOS,0.000000,,R$ 28.59,,,,,,3202391,true",,0.00,outro,sim
+PROD-0046,"Detergente,,1113,LIMPEZA,0.000000,,R$ 2.76,,,,,,3202391,true",,0.00,outro,sim
+PROD-0047,"Jelco 22,,1063,INSUMOS,0.000000,R$ 0.00,R$ 4.09,,,,,,3202391,true",,0.00,outro,sim
+PROD-0048,"Paco,,1020,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.88,,,,,,3202391,true",,0.00,outro,sim
+PROD-0049,"Tramal 50mg,,1023,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.40,,,,,,3202391,true",,0.00,outro,sim
+PROD-0050,"Zolpidem,,1024,MEDICAÃ‡ÃƒO,0.000000,,R$ 0.74,,,,,,3202391,true",,0.00,outro,sim
+PROD-0051,"Ãgua Destilada para Autoclave,,1030,INSUMOS,0.000000,,R$ 15.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0052,"LenÃ§ol para Maca,,1066,INSUMOS,0.000000,,R$ 1.17,,,,,,3202391,true",,0.00,outro,sim
+PROD-0053,"Ãlcool em Gel,,1104,INSUMOS,0.000000,,R$ 0.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0054,"Sabonete LÃ­quido,,1105,LIMPEZA,0.000000,,R$ 23.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0055,"LenÃ§o umedecido,,1112,INSUMOS,0.000000,,R$ 9.14,,,,,,3202391,true",,0.00,outro,sim
+PROD-0056,"Copo Descartavel,,1115,COPA E COZINHA,0.000000,,R$ 4.84,,,,,,3202391,true",,0.00,outro,sim
+PROD-0057,"Ãgua Oxigenada,,1031,INSUMOS,0.000000,,R$ 5.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0058,"Blades 1.2,,1042,INSUMOS,0.000000,,R$ 9.20,,,,,,3202391,true",,0.00,outro,sim
+PROD-0059,"Tubo Coleta Citrato (azul),,1085,INSUMOS,0.000000,,R$ 1.10,,,,,,3202391,true",,0.00,outro,sim
+PROD-0060,"Ãgua 500ml,,1106,COPA E COZINHA,0.000000,,R$ 1.79,,,,,,3202391,true",,0.00,outro,sim
+PROD-0061,"CafÃ© em capsula,,1108,COPA E COZINHA,0.000000,,R$ 1.50,,,,,,3202391,true",,0.00,outro,sim
+PROD-0062,"Elastico de silicone,,1118,INSUMOS,0.000000,,R$ 8.06,,,,,,3202391,true",,0.00,outro,sim
+PROD-0063,"PinÃ§a de extraÃ§Ã£o,,1125,INSUMOS,0.000000,,R$ 340.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0064,"Midazolam 15mg/3ml,,1018,MEDICAÃ‡ÃƒO,0.000000,,R$ 2.70,,,,,,3202391,true",,0.00,outro,sim
+PROD-0065,"Lancetas 28g,,1065,INSUMOS,0.000000,,R$ 0.30,,,,,,3202391,true",,0.00,outro,sim
+PROD-0066,"Lidocaina HCL 2ml (Meso),,1027,MEDICAÃ‡ÃƒO,0.000000,,R$ 7.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0067,"Blades 1.0,,1040,INSUMOS,0.000000,,R$ 9.20,,,,,,3202391,true",,0.00,outro,sim
+PROD-0068,"MÃ¡scara,,1069,INSUMOS,0.000000,,R$ 0.11,,,,,,3202391,true",,0.00,outro,sim
+PROD-0069,"Dexametasona 4mg,,1007,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.65,,,,,,3202391,true",,0.00,outro,sim
+PROD-0070,"Minoxidil 0,5% 2ml (Meso),,1029,MEDICAÃ‡ÃƒO,0.000000,,R$ 7.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0071,"Touca DescartÃ¡vel,,1084,INSUMOS,0.000000,,R$ 0.19,,,,,,3202391,true",,0.00,outro,sim
+PROD-0072,"Ãlcool,,1099,LIMPEZA,0.000000,,R$ 11.50,,,,,,3202391,true",,0.00,outro,sim
+PROD-0073,"Luva Esteril 7.5,,1091,INSUMOS,0.000000,,R$ 2.26,,,,40151200,,3202391,true",,0.00,outro,sim
+PROD-0074,"Alprazolan 1mg,,1002,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.14,,,,,,3202391,true",,0.00,outro,sim
+PROD-0075,"Epinefrina,,1011,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.80,,,,,,3202391,true",,0.00,outro,sim
+PROD-0076,"Luva Esteril 8.0,,1092,INSUMOS,0.000000,,R$ 2.26,,,,,,3202391,true",,0.00,outro,sim
+PROD-0077,"Vinagre de Ãcool,,1103,LIMPEZA,0.000000,,R$ 6.09,,,,,,3202391,true",,0.00,outro,sim
+PROD-0078,"Bom Air,,1109,COPA E COZINHA,0.000000,,R$ 15.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0079,"Difenidramina,,1025,MEDICAÃ‡ÃƒO,0.000000,,R$ 37.53,,,,,,3202391,true",,0.00,outro,sim
+PROD-0080,"AÃ§ucar sachÃª,,1111,COPA E COZINHA,0.000000,,R$ 0.17,,,,,,3202391,true",,0.00,outro,sim
+PROD-0081,"Embalagem autoclavante M (19x33),,1053,INSUMOS,0.000000,,R$ 0.78,,,,,,3202391,true",,0.00,outro,sim
+PROD-0082,"Veja,,1098,LIMPEZA,0.000000,,R$ 6.82,,,,,,3202391,true",,0.00,outro,sim
+PROD-0083,"PinÃ§a de implantaÃ§Ã£o,,1126,INSUMOS,0.000000,,R$ 340.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0084,"Cefadroxila 500mg,,1006,MEDICAÃ‡ÃƒO,0.000000,,R$ 25.37,,,,,,3202391,true",,0.00,outro,sim
+PROD-0085,"Teste rÃ¡pido Hepatite C,,1096,INSUMOS,0.000000,,R$ 8.76,,,,,,3202391,true",,0.00,outro,sim
+PROD-0086,"Maq. ExtraÃ§Ã£o,,1127,INSUMOS,1.000000,,R$ 192.05,,,,,,3202391,true",,0.00,outro,sim
+PROD-0087,"Soro FisiolÃ³gico EV,,1081,INSUMOS,0.000000,,R$ 12.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0088,"Flanela,,1114,LIMPEZA,0.000000,,R$ 5.98,,,,,,3202391,true",,0.00,outro,sim
+PROD-0089,"Atropina,,1003,MEDICAÃ‡ÃƒO,0.000000,,R$ 11.89,,,,,,3202391,true",,0.00,outro,sim
+PROD-0090,"Capitopril 50mg,,1005,MEDICAÃ‡ÃƒO,0.000000,,R$ 0.45,,,,,,3202391,true",,0.00,outro,sim
+PROD-0091,"Agulha 40x12,,1034,INSUMOS,0.000000,,R$ 0.28,,,,,,3202391,true",,0.00,outro,sim
+PROD-0092,"Ã“leo Cicatrizante,,1071,INSUMOS,0.000000,,R$ 13.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0093,"Dipirona 1g,,1008,MEDICAÃ‡ÃƒO,0.000000,,R$ 21.29,,,,,,3202391,true",,0.00,outro,sim
+PROD-0094,"Triancil,,1016,MEDICAÃ‡ÃƒO,0.000000,,R$ 26.59,,,,,,3202391,true",,0.00,outro,sim
+PROD-0095,"Avental Esteril,,1038,INSUMOS,0.000000,,R$ 26.09,,,,,,3202391,true",,0.00,outro,sim
+PROD-0096,"Tiras para Glicemia,,1083,INSUMOS,0.000000,,R$ 1.26,,,,,,3202391,true",,0.00,outro,sim
+PROD-0097,"Ãlcool Swab,,1036,INSUMOS,0.000000,R$ 0.00,R$ 0.08,,,,,,3202391,true",,0.00,outro,sim
+PROD-0098,"Ondasetrona 2 mg,,1019,MEDICAÃ‡ÃƒO,0.000000,,R$ 1.67,,,,,,3202391,true",,0.00,outro,sim
+PROD-0099,"Teste rÃ¡pido HiV,,1093,INSUMOS,0.000000,,R$ 8.76,,,,,,3202391,true",,0.00,outro,sim
+PROD-0100,"Garrote,,1121,INSUMOS,0.000000,,R$ 39.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0101,"Agulha 20x0,55,,1033,INSUMOS,0.000000,,R$ 0.35,,,,,,3202391,true",,0.00,outro,sim
+PROD-0102,"Seringa 10ml,,1076,INSUMOS,0.000000,,R$ 0.97,,,,,,3202391,true",,0.00,outro,sim
+PROD-0103,"Tubo Coleta Transporte (branco),,1088,INSUMOS,0.000000,,R$ 1.84,,,,,,3202391,true",,0.00,outro,sim
+PROD-0104,"Gaze,,1059,INSUMOS,0.000000,,R$ 0.05,,,,,,3202391,true",,0.00,outro,sim
+PROD-0105,"Polifix,,1073,INSUMOS,0.000000,,R$ 1.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0106,"Filtro de cafÃ©,,1119,INSUMOS,0.000000,,R$ 5.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0107,"Curativo transparente 10x10,,1122,INSUMOS,2.000000,,R$ 129.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0108,"Teste rÃ¡pido sÃ­filis,,1094,INSUMOS,0.000000,R$ 0.00,R$ 8.76,,,,,,3202391,true",,0.00,outro,sim
+PROD-0109,"Seringa 3ml,,1078,INSUMOS,0.000000,,R$ 0.47,,,,,,3202391,true",,0.00,outro,sim
+PROD-0110,"Soro FisiolÃ³gico 500ml,,1080,INSUMOS,0.000000,,R$ 5.99,,,,,,3202391,true",,0.00,outro,sim
+PROD-0111,"Tapete HigiÃªnico,,1082,INSUMOS,0.000000,,R$ 2.60,,,,,,3202391,true",,0.00,outro,sim
+PROD-0112,"Luva Esteril 7.0,,1090,INSUMOS,0.000000,,R$ 2.26,,,,,,3202391,true",,0.00,outro,sim
+PROD-0113,"Limpa Vidro,,1100,LIMPEZA,0.000000,,R$ 8.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0114,"Seringa 5ml,,1079,INSUMOS,0.000000,,R$ 0.64,,,,90183119,,3202391,true",,0.00,outro,sim
+PROD-0115,"Teste rÃ¡pido Hepatite B,,1095,INSUMOS,0.000000,,R$ 8.76,,,,,,3202391,true",,0.00,outro,sim
+PROD-0116,"Capa de caneta,,1046,INSUMOS,0.000000,,R$ 3.34,,,,,,3202391,true",,0.00,outro,sim
+PROD-0117,"Luva Esteril 6.5,,1067,INSUMOS,0.000000,,R$ 2.26,,,,,,3202391,true",,0.00,outro,sim
+PROD-0118,"Desinfetante 5L,,1101,LIMPEZA,0.000000,,R$ 21.77,,,,,,3202391,true",,0.00,outro,sim
+PROD-0119,"Descarpack 7L,,1049,INSUMOS,0.000000,,R$ 6.50,,,,,,3202391,true",,0.00,outro,sim
+PROD-0120,"Agulha mesoterapia 4mm,,1124,INSUMOS,2.000000,,R$ 119.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0121,"Germi rio 1L,,1060,INSUMOS,0.000000,,R$ 11.90,,,,,,3202391,true",,0.00,outro,sim
+PROD-0122,"Compressa,,1048,INSUMOS,0.000000,,R$ 60.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0123,"Clorex 2% 1L,,1047,INSUMOS,0.000000,,R$ 19.84,,,,,,3202391,true",,0.00,outro,sim
+PROD-0124,"Germi rio 5L,,1061,INSUMOS,0.000000,,R$ 58.70,,,,,,3202391,true",,0.00,outro,sim
+PROD-0125,"Campo Esteril 70x70,,1045,INSUMOS,0.000000,,R$ 4.91,,,,,,3202391,true",,0.00,outro,sim
+PROD-0126,"Escalpe 23G,,1058,INSUMOS,0.000000,,R$ 0.54,,,,,,3202391,true",,0.00,outro,sim
+PROD-0127,"Jelco 20,,1062,INSUMOS,0.000000,,R$ 4.19,,,,,,3202391,true",,0.00,outro,sim
+PROD-0128,"Detergente EnzimÃ¡tico,,1050,INSUMOS,0.000000,,R$ 28.84,,,,,,3202391,true",,0.00,outro,sim
+PROD-0129,"Embalagem autoclavante G (24x38),,1052,INSUMOS,0.000000,,R$ 0.95,,,,,,3202391,true",,0.00,outro,sim
+PROD-0130,"Escalpe 21G,,1057,INSUMOS,0.000000,,R$ 0.54,,,,,,3202391,true",,0.00,outro,sim
+PROD-0131,"PUNCH HARD SHARK SERRILHADO 3.5X0.85MM,,PU0151,Material de Uso e Consumo,0.000000,,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0132,"PUNCH HARD SHARK SERRILHADO 3.5X0.9MM,,PU0116,Material de Uso e Consumo,0.000000,,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0133,"PUNCH HARD SHARK SERRILHADO 3.5X0.95MM,,PU0118,Material de Uso e Consumo,0.000000,,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0134,"PUNCH HARD SHARK TROMPETE 3.5X1.0MM,,PU0184,Material de Uso e Consumo,0.000000,,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0135,"Prestobarba,,PREST1,INSUMOS,0.000000,R$ 0.00,R$ 0.00,,,,,,3202391,true",,0.00,outro,sim
+PROD-0136,"Consulta,,,Outras,,,,,,,,,3202391,true",,0.00,outro,sim
+PROD-0137,"PUNCH HARD SHARK TROMPETE 3.5X1.1MM,,PU0185,Material de Uso e Consumo,0.000000,,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0138,"LAMINA PRE INCISAO ANG. 45  1.0MM,,LA0022,Material de Uso e Consumo,0.000000,R$ 0.00,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0139,"LAMINA PRE INCISAO ANG. 45 1.2MM,,LA0023,Material de Uso e Consumo,0.000000,R$ 0.00,R$ 0.00,,,,90185090,,3202391,true",,0.00,outro,sim
+PROD-0140,"Botox,,BOTOX1,Outras,-2.000000,,R$ 0.00,,,,,,3202391,true",,0.00,outro,sim
