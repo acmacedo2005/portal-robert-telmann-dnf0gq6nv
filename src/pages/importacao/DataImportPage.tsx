@@ -19,11 +19,11 @@ export default function DataImportPage() {
           Integração de Banco de Dados Necessária
         </AlertTitle>
         <AlertDescription className="mt-2 text-base leading-relaxed">
-          As linhas dos arquivos CSV fornecidos (<strong>produtos.csv</strong>,{' '}
-          <strong>negociacoes.csv</strong>, <strong>pessoas-d11a9.csv</strong>,{' '}
-          <strong>propostascomerciais-b63af.csv</strong>, <strong>financeiro-d4d87.csv</strong>)
+          As linhas dos arquivos CSV fornecidos (<strong>pessoas-0506d.csv</strong>,{' '}
+          <strong>propostascomerciais-55450.csv</strong>, <strong>financeiro-fc2f0.csv</strong>)
           devem ser importadas diretamente no seu banco de dados conectado (Skip Cloud / PocketBase)
-          para que o aplicativo possa lê-las a partir de lá em tempo de execução.
+          através de scripts externos ou ferramentas administrativas, para que o aplicativo possa
+          lê-las a partir de lá em tempo de execução.
           <br />
           <br />
           Se nenhum banco de dados estiver conectado ainda, instrua-se a conectar um através do
@@ -32,10 +32,10 @@ export default function DataImportPage() {
           <br />
           <br />
           <strong>Atenção:</strong> Os dados mockados (fictícios) de demonstração foram removidos
-          através da migração <code>0044_delete_mock_data.js</code> para preparar o ambiente. Agora,
-          utilize as ferramentas e o painel de administração do banco de dados para realizar a
-          importação segura e relacional das linhas reais. A importação direta e estática no código
-          não é permitida.
+          através das migrações <code>0044</code> e <code>0045_remove_mock_users.js</code> para
+          preparar o ambiente. Agora, utilize as ferramentas e o painel de administração do banco de
+          dados para realizar a importação segura e relacional das linhas reais, seguindo as regras
+          de negócio abaixo. A importação direta e estática no código não é permitida.
         </AlertDescription>
       </Alert>
 
@@ -92,7 +92,7 @@ export default function DataImportPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">3. Pacientes</CardTitle>
-              <CardDescription>pessoas-d11a9.csv</CardDescription>
+              <CardDescription>pessoas-0506d.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
               <p className="text-muted-foreground">
@@ -102,15 +102,25 @@ export default function DataImportPage() {
                 <li>nome, telefone, email</li>
                 <li>endereco, numero, complemento</li>
                 <li>bairro, cidade, estado, cep</li>
-                <li>data_nascimento (YYYY-MM-DD)</li>
-                <li>genero</li>
+                <li>data_nascimento, genero</li>
               </ul>
               <div className="flex items-start gap-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10 p-2 rounded border border-yellow-200">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                <p>
-                  <strong>Restrição:</strong> Garanta que não existam duplicatas baseadas na
-                  combinação exata de Nome + Telefone.
-                </p>
+                <div className="space-y-1">
+                  <p>
+                    <strong>Sanitização e Resolução de Identidade:</strong>
+                  </p>
+                  <p>
+                    Antes de importar, converta <code>nome</code> para letras minúsculas (removendo
+                    espaços extras) e remova todos os caracteres não-numéricos de{' '}
+                    <code>telefone</code>.
+                  </p>
+                  <p>
+                    <strong>Regra de Unicidade:</strong> Um paciente é único pela combinação desse{' '}
+                    <code>nome</code> + <code>telefone</code> sanitizados. Se a chave já existir,
+                    pule o registro.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -118,25 +128,36 @@ export default function DataImportPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">4. Vendas & Propostas</CardTitle>
-              <CardDescription>propostascomerciais-b63af.csv</CardDescription>
+              <CardDescription>propostascomerciais-55450.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
               <p className="text-muted-foreground">
                 Importe para a coleção <strong>vendas</strong> mapeando as colunas:
               </p>
               <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
-                <li>id_proposta (como referência)</li>
+                <li>id_proposta (salvar em observacoes)</li>
                 <li>data_proposta &rarr; data_venda</li>
                 <li>valor_total, entrada_paga</li>
                 <li>status, observacoes</li>
               </ul>
               <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-200">
                 <Info className="w-4 h-4 shrink-0" />
-                <p>
-                  <strong>Relacional:</strong> O sistema de importação do DB deve buscar o ID do
-                  paciente usando o <code>nome_cliente</code> e <code>telefone_cliente</code> do CSV
-                  para preencher <code>paciente_id</code>.
-                </p>
+                <div className="space-y-1">
+                  <p>
+                    <strong>Mapeamento Relacional:</strong> Buscar o ID do paciente cruzando{' '}
+                    <code>nome_cliente</code> e <code>telefone_cliente</code> (usando a mesma regra
+                    de sanitização de pacientes).
+                  </p>
+                  <p>
+                    <strong>Ação em Falha:</strong> Se o paciente não for encontrado, a venda{' '}
+                    <strong>não deve ser importada</strong>. O script deve registrar um aviso:{' '}
+                    <em>
+                      "Paciente [nome] [telefone] nao encontrado — proposta [id_proposta] nao
+                      importada"
+                    </em>
+                    .
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -144,26 +165,63 @@ export default function DataImportPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">5. Financeiro</CardTitle>
-              <CardDescription>financeiro-d4d87.csv</CardDescription>
+              <CardDescription>financeiro-fc2f0.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
               <p className="text-muted-foreground">
-                Filtre pelo campo <code>tipo</code> e importe para <strong>faturas</strong>{' '}
-                (receitas) ou <strong>contas_pagar</strong> (despesas):
+                Roteamento categorizado com base na coluna <code>tipo</code>:
               </p>
               <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
-                <li>tipo (Usar como filtro)</li>
-                <li>nome_cliente (paciente_id / fornecedor)</li>
-                <li>descricao, valor</li>
-                <li>data_vencimento, data_pagamento</li>
-                <li>status, categoria</li>
+                <li>
+                  Se <strong>receita</strong>: Importar para <strong>faturas</strong>.
+                </li>
+                <li>
+                  Se <strong>despesa</strong>: Importar para <strong>contas_pagar</strong>.
+                </li>
               </ul>
               <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-200">
                 <Info className="w-4 h-4 shrink-0" />
                 <p>
-                  Receitas tornam-se Faturas (lookup de paciente obrigatório), Despesas tornam-se
-                  Contas a Pagar (<code>nome_cliente</code> vai para <code>fornecedor</code>).
+                  Para Receitas, faça o lookup do <code>paciente_id</code> com a chave
+                  nome+telefone. Para Despesas, salve o <code>nome_cliente</code> diretamente no
+                  campo <code>fornecedor</code>.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">6. Padrões e Relatório</CardTitle>
+              <CardDescription>Regras Finais de Importação</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-4">
+              <div className="space-y-2">
+                <p>
+                  <strong>Formatação de Dados:</strong>
+                </p>
+                <ul className="list-disc pl-5 text-muted-foreground">
+                  <li>
+                    Datas no formato <code>DD/MM/YYYY</code> devem ser devidamente convertidas para
+                    o padrão do banco.
+                  </li>
+                  <li>
+                    Valores monetários devem garantir 2 casas decimais (ex: <code>15000.00</code>).
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2 pt-2">
+                <p>
+                  <strong>Relatório de Auditoria (Output do seu Script):</strong>
+                </p>
+                <ul className="list-disc pl-5 text-muted-foreground">
+                  <li>Total de Pacientes importados vs Total de duplicatas ignoradas.</li>
+                  <li>Total de Vendas importadas vs Total de falhas (paciente não encontrado).</li>
+                  <li>Total de Faturas (Receitas) e Contas a Pagar (Despesas) importadas.</li>
+                  <li>
+                    Lista com os avisos específicos de falha de vínculo de paciente nas vendas.
+                  </li>
+                </ul>
               </div>
             </CardContent>
           </Card>
