@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T00:55:22.133Z",
+  "generatedAt": "2026-05-16T01:01:48.754Z",
   "collections": [
     {
       "name": "users",
@@ -1178,7 +1178,11 @@
             "salarios",
             "utilitarios",
             "outros",
-            "taxas_cartao"
+            "taxas_cartao",
+            "faturas",
+            "contas_pagar",
+            "receita",
+            "despesa"
           ]
         },
         {
@@ -1591,6 +1595,53 @@
         {
           "name": "max_parcelas",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "observacoes_paciente",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "observacao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data",
+          "type": "date",
           "required": false,
           "system": false
         },

@@ -17,6 +17,7 @@ import VendasList from './pages/vendas/VendasList'
 import PacienteDetails from './pages/pacientes/PacienteDetails'
 import Parametrizacao from './pages/parametrizacao/Parametrizacao'
 import ComissoesReport from './pages/relatorios/ComissoesReport'
+import DataImportPage from './pages/importacao/DataImportPage'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/vendas" element={<VendasList />} />
             <Route path="/parametrizacao" element={<Parametrizacao />} />
             <Route path="/relatorios/comissoes" element={<ComissoesReport />} />
+            <Route path="/importacao" element={<DataImportPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
