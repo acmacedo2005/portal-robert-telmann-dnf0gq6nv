@@ -40,7 +40,9 @@ import {
   DollarSign,
   Calendar as CalendarIcon,
   List,
+  Activity,
 } from 'lucide-react'
+import { FaturaAgendamentosModal } from './FaturaAgendamentosModal'
 import { CurrencyInput } from '@/components/ui/currency-input'
 
 const formatBRL = (val: number) =>
@@ -95,8 +97,10 @@ export function FaturasTab() {
 
   const [selectedFatura, setSelectedFatura] = useState<Fatura | null>(null)
   const [parcelasDialogFatura, setParcelasDialogFatura] = useState<Fatura | null>(null)
+  const [agendamentosModalFatura, setAgendamentosModalFatura] = useState<Fatura | null>(null)
 
   const [valorRecebido, setValorRecebido] = useState<number>(0)
+  const [upcomingAgendamentos, setUpcomingAgendamentos] = useState<any[]>([])
   const [metodo, setMetodo] = useState('pix')
 
   const loadData = async () => {
@@ -104,6 +108,15 @@ export function FaturasTab() {
     setError(null)
     try {
       setFaturas(await getFaturas())
+
+      const pb = (await import('@/lib/pocketbase/client')).default
+      const ags = await pb.collection('agendamentos').getFullList({
+        filter: `data_agendamento >= '${new Date().toISOString().split('T')[0]}' && status != 'cancelado'`,
+        sort: 'data_agendamento,hora_agendamento',
+        expand: 'profissional_id',
+        requestKey: null,
+      })
+      setUpcomingAgendamentos(ags)
     } catch (err) {
       setError('Falha ao carregar as faturas. Verifique sua conexão.')
     } finally {
@@ -117,6 +130,17 @@ export function FaturasTab() {
 
   useRealtime('faturas', loadData)
   useRealtime('pagamentos', loadData)
+  useRealtime('agendamentos', loadData)
+
+  const nextAgendamentoByPaciente = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const ag of upcomingAgendamentos) {
+      if (!map[ag.paciente_id]) {
+        map[ag.paciente_id] = ag
+      }
+    }
+    return map
+  }, [upcomingAgendamentos])
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const next7DaysDate = new Date()
@@ -403,6 +427,7 @@ export function FaturasTab() {
                   <TableHead>Saldo Restante</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Vencimento</TableHead>
+                  <TableHead>Contexto Clínico</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -424,7 +449,32 @@ export function FaturasTab() {
                       <TableCell className={isVencida ? 'text-red-500 font-medium' : ''}>
                         {formatDt(f.data_vencimento)}
                       </TableCell>
+                      <TableCell className="text-sm">
+                        {nextAgendamentoByPaciente[f.paciente_id] ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold">
+                              {formatDt(nextAgendamentoByPaciente[f.paciente_id].data_agendamento)}{' '}
+                              {nextAgendamentoByPaciente[f.paciente_id].hora_agendamento || ''}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                              {nextAgendamentoByPaciente[f.paciente_id].tipo}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">
+                            Sem agendamentos
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Contexto Clínico"
+                          onClick={() => setAgendamentosModalFatura(f)}
+                        >
+                          <Activity className="h-4 w-4 text-blue-500" />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -476,14 +526,33 @@ export function FaturasTab() {
                       </div>
                       {getStatusBadge(f.status)}
                     </div>
-                    <div className="text-sm text-muted-foreground mb-4">
+                    <div className="text-sm text-muted-foreground mb-2">
                       Saldo:{' '}
                       <span className="font-bold text-primary">
                         {formatBRL(f.saldo_restante ?? f.valor)}
                       </span>{' '}
                       (de {formatBRL(f.valor)})
                     </div>
+                    <div className="text-sm text-muted-foreground mb-4 bg-muted/50 p-2 rounded-md">
+                      <p className="font-semibold text-xs mb-1">Próximo Agendamento:</p>
+                      {nextAgendamentoByPaciente[f.paciente_id] ? (
+                        <span>
+                          {formatDt(nextAgendamentoByPaciente[f.paciente_id].data_agendamento)} -{' '}
+                          {nextAgendamentoByPaciente[f.paciente_id].tipo}
+                        </span>
+                      ) : (
+                        <span className="italic text-xs">Nenhum</span>
+                      )}
+                    </div>
                     <div className="flex justify-end gap-2 flex-wrap">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => setAgendamentosModalFatura(f)}
+                        title="Contexto Clínico"
+                      >
+                        <Activity className="h-4 w-4 text-blue-500" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="outline"
@@ -650,6 +719,14 @@ export function FaturasTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {agendamentosModalFatura && (
+        <FaturaAgendamentosModal
+          fatura={agendamentosModalFatura}
+          isOpen={!!agendamentosModalFatura}
+          onClose={() => setAgendamentosModalFatura(null)}
+        />
+      )}
     </div>
   )
 }

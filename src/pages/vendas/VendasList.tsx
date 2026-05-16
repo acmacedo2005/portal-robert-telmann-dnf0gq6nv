@@ -22,9 +22,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
-import { Plus, Search, Frown, RefreshCw, FileText, Edit } from 'lucide-react'
+import { Plus, Search, Frown, RefreshCw, FileText, Edit, Activity } from 'lucide-react'
 import VendaForm from './VendaForm'
 import { ParcelasModal } from './ParcelasModal'
+import { VendaDetailsSheet } from './VendaDetailsSheet'
 
 const statusColor = {
   pendente: 'bg-yellow-100 text-yellow-800',
@@ -50,6 +51,7 @@ const formatDate = (dateStr: string | undefined) => {
 export default function VendasList() {
   const [vendas, setVendas] = useState<any[]>([])
   const [vendedores, setVendedores] = useState<any[]>([])
+  const [upcomingAgendamentos, setUpcomingAgendamentos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const { toast } = useToast()
@@ -59,6 +61,8 @@ export default function VendasList() {
   const [vendaToEdit, setVendaToEdit] = useState<any>(null)
   const [parcelasModalOpen, setParcelasModalOpen] = useState(false)
   const [selectedVenda, setSelectedVenda] = useState<any>(null)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
+  const [vendaForDetails, setVendaForDetails] = useState<any>(null)
 
   // Filters
   const [filterVendedor, setFilterVendedor] = useState('all')
@@ -82,6 +86,14 @@ export default function VendasList() {
         requestKey: null,
       })
       setVendedores(v)
+
+      const ags = await pb.collection('agendamentos').getFullList({
+        filter: `data_agendamento >= '${new Date().toISOString().split('T')[0]}' && status != 'cancelado'`,
+        sort: 'data_agendamento,hora_agendamento',
+        expand: 'profissional_id',
+        requestKey: null,
+      })
+      setUpcomingAgendamentos(ags)
     } catch (err: any) {
       if (!err.isAbort) {
         setError(true)
@@ -97,6 +109,17 @@ export default function VendasList() {
   }, [])
 
   useRealtime('vendas', loadData)
+  useRealtime('agendamentos', loadData)
+
+  const nextAgendamentoByPaciente = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const ag of upcomingAgendamentos) {
+      if (!map[ag.paciente_id]) {
+        map[ag.paciente_id] = ag
+      }
+    }
+    return map
+  }, [upcomingAgendamentos])
 
   const filteredVendas = useMemo(() => {
     return vendas.filter((v) => {
@@ -205,6 +228,7 @@ export default function VendasList() {
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead className="text-center">Data</TableHead>
                   <TableHead className="text-center">Status</TableHead>
+                  <TableHead>Próx. Agendamento</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -234,13 +258,16 @@ export default function VendasList() {
                         <Skeleton className="h-6 w-[80px]" />
                       </TableCell>
                       <TableCell>
+                        <Skeleton className="h-4 w-[120px]" />
+                      </TableCell>
+                      <TableCell>
                         <Skeleton className="h-8 w-[120px]" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : filteredVendas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                       <div className="flex flex-col items-center">
                         <Search className="w-10 h-10 mb-2 opacity-20" />
                         <p className="mb-4">Nenhuma venda encontrada.</p>
@@ -277,8 +304,38 @@ export default function VendasList() {
                           {v.status}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-sm">
+                        {nextAgendamentoByPaciente[v.paciente_id] ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                              {formatDate(
+                                nextAgendamentoByPaciente[v.paciente_id].data_agendamento,
+                              )}{' '}
+                              {nextAgendamentoByPaciente[v.paciente_id].hora_agendamento || ''}
+                            </span>
+                            <span className="text-xs text-zinc-500 truncate max-w-[150px]">
+                              {nextAgendamentoByPaciente[v.paciente_id].tipo} -{' '}
+                              {nextAgendamentoByPaciente[v.paciente_id].expand?.profissional_id
+                                ?.name || 'Profissional'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 italic">Sem agendamentos</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="Timeline do Paciente"
+                            onClick={() => {
+                              setVendaForDetails(v)
+                              setDetailsModalOpen(true)
+                            }}
+                          >
+                            <Activity className="w-4 h-4 mr-2" /> Timeline
+                          </Button>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -346,7 +403,30 @@ export default function VendasList() {
                         <p>{formatDate(v.data_venda)}</p>
                       </div>
                     </div>
-                    <div className="flex gap-2 pt-2 border-t mt-2">
+                    <div className="pt-2 border-t mt-2">
+                      <p className="text-xs text-zinc-500 mb-1">Próx. Agendamento:</p>
+                      {nextAgendamentoByPaciente[v.paciente_id] ? (
+                        <p className="text-sm font-medium mb-3">
+                          {formatDate(nextAgendamentoByPaciente[v.paciente_id].data_agendamento)}{' '}
+                          {nextAgendamentoByPaciente[v.paciente_id].hora_agendamento || ''} -{' '}
+                          {nextAgendamentoByPaciente[v.paciente_id].tipo}
+                        </p>
+                      ) : (
+                        <p className="text-sm italic text-zinc-400 mb-3">Nenhum</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t mt-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          setVendaForDetails(v)
+                          setDetailsModalOpen(true)
+                        }}
+                      >
+                        <Activity className="w-4 h-4 mr-2" /> Timeline
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -384,6 +464,14 @@ export default function VendasList() {
           venda={selectedVenda}
           isOpen={parcelasModalOpen}
           onClose={() => setParcelasModalOpen(false)}
+        />
+      )}
+
+      {detailsModalOpen && vendaForDetails && (
+        <VendaDetailsSheet
+          venda={vendaForDetails}
+          isOpen={detailsModalOpen}
+          onClose={() => setDetailsModalOpen(false)}
         />
       )}
     </div>
