@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T22:40:59.072Z",
+  "generatedAt": "2026-05-16T23:15:20.899Z",
   "collections": [
     {
       "name": "users",
@@ -739,21 +739,21 @@
         {
           "name": "paciente_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "pacientes"
         },
         {
           "name": "tipo",
           "type": "select",
-          "required": true,
+          "required": false,
           "system": false,
           "selectValues": ["cirurgia", "aplicacao", "avaliacao", "retorno", "meso", "prp", "botox"]
         },
         {
           "name": "data_agendamento",
           "type": "date",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -765,7 +765,7 @@
         {
           "name": "profissional_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "users"
         },
@@ -774,7 +774,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["agendado", "realizada", "cancelado", "rascunho"]
+          "selectValues": ["agendado", "realizada", "cancelado", "rascunho", "concluido"]
         },
         {
           "name": "observacoes",
@@ -823,6 +823,72 @@
           "required": false,
           "system": false,
           "collectionRef": "saldo_tratamentos"
+        },
+        {
+          "name": "pk",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_id",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "physician_id",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "physician_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "start_time",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "end_time",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "procedure_pack",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observation",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "date_added",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "updated_at",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

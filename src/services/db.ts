@@ -44,11 +44,22 @@ export interface Agendamento extends RecordModel {
   data_agendamento: string
   hora_agendamento?: string
   profissional_id: string
-  status: 'agendado' | 'realizada' | 'cancelado' | 'rascunho'
+  status: 'agendado' | 'realizada' | 'cancelado' | 'rascunho' | 'concluido'
   observacoes?: string
   cirurgia_id?: string
   tratamento_id?: string
   retorno_automatico_id?: string
+  pk?: string
+  patient_id?: number
+  physician_id?: number
+  physician_name?: string
+  date?: string
+  start_time?: string
+  end_time?: string
+  procedure_pack?: string
+  observation?: string
+  date_added?: string
+  updated_at?: string
   expand?: {
     paciente_id?: Paciente
     profissional_id?: RecordModel

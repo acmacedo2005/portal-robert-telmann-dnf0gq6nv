@@ -27,6 +27,7 @@ import {
   TrendingDown,
   Activity,
   Users,
+  CalendarDays,
 } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
@@ -185,6 +186,7 @@ export default function DataImportPage() {
   const [acompanhamentoFile, setAcompanhamentoFile] = useState<File | null>(null)
   const [cirurgiasFile, setCirurgiasFile] = useState<File | null>(null)
   const [mestreFile, setMestreFile] = useState<File | null>(null)
+  const [mestreAgendamentosFile, setMestreAgendamentosFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -199,6 +201,12 @@ export default function DataImportPage() {
       vendedores: Record<string, number>
       aVencer: number
       vencido: number
+    }
+    mestreAgendamentos: {
+      total: number
+      concluido: number
+      agendado: number
+      medicosUnicos: number
     }
     erros: string[]
   } | null>(null)
@@ -220,7 +228,8 @@ export default function DataImportPage() {
       !fluxoFile &&
       !acompanhamentoFile &&
       !cirurgiasFile &&
-      !mestreFile
+      !mestreFile &&
+      !mestreAgendamentosFile
     ) {
       toast({
         title: 'Aviso',
@@ -246,14 +255,29 @@ export default function DataImportPage() {
       aVencer: 0,
       vencido: 0,
     }
+    const mestreAgendamentosRes = {
+      total: 0,
+      concluido: 0,
+      agendado: 0,
+      medicosUnicos: 0,
+    }
 
     try {
       const existingPacientes = await pb.collection('pacientes').getFullList({ requestKey: null })
       const patientMap = new Map<string, string>()
+      const patientMapById = new Map<number, string>()
       for (const p of existingPacientes) {
         const key = `${normName(p.nome)}|${normPhone(p.telefone)}`
         patientMap.set(key, p.id)
+        if (p.patient_id) patientMapById.set(p.patient_id, p.id)
       }
+
+      const allUsers = await pb.collection('users').getFullList({ requestKey: null })
+      const userMapByName = new Map<string, string>()
+      for (const u of allUsers) {
+        if (u.name) userMapByName.set(normName(u.name), u.id)
+      }
+      const fallbackUserId = allUsers[0]?.id
 
       const findPatient = (row: any) => {
         const nomeRaw = row.nome_cliente || row.nome || row.cliente || ''
@@ -368,6 +392,76 @@ export default function DataImportPage() {
             )
           }
         }
+      }
+
+      if (mestreAgendamentosFile) {
+        const text = await readFile(mestreAgendamentosFile)
+        const data = parseCSV(text)
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const medicosSet = new Set<string>()
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const dateRaw = row.date || row.data || ''
+          if (!dateRaw) continue
+
+          const parsedDateStr = parseExcelOrBrDate(dateRaw)
+          if (!parsedDateStr) continue
+
+          const dtObj = new Date(parsedDateStr)
+          dtObj.setHours(0, 0, 0, 0)
+
+          const isConcluido = dtObj < today
+          const status = isConcluido ? 'concluido' : 'agendado'
+
+          const physicianIdStr = row.physician_id || row['physician id'] || ''
+          const physicianIdNum = parseInt(physicianIdStr, 10) || null
+          const physicianName = row.physician_name || row['physician name'] || ''
+
+          if (physicianName) medicosSet.add(physicianName)
+          else if (physicianIdNum) medicosSet.add(physicianIdNum.toString())
+
+          const patientIdRaw = row.patient_id || row['patient id'] || ''
+          const patientIdNum = parseInt(patientIdRaw, 10) || null
+          const pbPacienteId = patientIdNum ? patientMapById.get(patientIdNum) : null
+          const pbProfissionalId = userMapByName.get(normName(physicianName)) || fallbackUserId
+
+          try {
+            await pb.collection('agendamentos').create(
+              {
+                pk: row.pk || '',
+                patient_id: patientIdNum,
+                physician_id: physicianIdNum,
+                physician_name: physicianName,
+                date: parsedDateStr,
+                start_time: row.start_time || row['start time'] || '',
+                end_time: row.end_time || row['end time'] || '',
+                procedure_pack: row.procedure_pack || row['procedure pack'] || row.procedure || '',
+                observation: row.observation || row.observacoes || '',
+                date_added: parseExcelOrBrDate(row.date_added || row['date added']) || null,
+                updated_at: parseExcelOrBrDate(row.updated_at || row['updated at']) || null,
+                status: status,
+
+                // fallback fields
+                paciente_id: pbPacienteId,
+                profissional_id: pbProfissionalId,
+                data_agendamento: parsedDateStr,
+                hora_agendamento: row.start_time || row['start time'] || '',
+                tipo: 'avaliacao',
+              },
+              { requestKey: null },
+            )
+
+            mestreAgendamentosRes.total++
+            if (isConcluido) mestreAgendamentosRes.concluido++
+            else mestreAgendamentosRes.agendado++
+          } catch (err: any) {
+            logs.push(`Mestre Agendamentos: Erro na linha ${i + 2} - ${err.message}`)
+          }
+        }
+        mestreAgendamentosRes.medicosUnicos = medicosSet.size
       }
 
       if (pessoasFile) {
@@ -695,6 +789,7 @@ export default function DataImportPage() {
         fluxo: fluxoImportados,
         cirurgiasRealizadas: cirurgiasRealizadasImportadas,
         acompanhamento: acompanhamentoRes,
+        mestreAgendamentos: mestreAgendamentosRes,
         erros: logs,
       })
 
@@ -714,6 +809,7 @@ export default function DataImportPage() {
       setAcompanhamentoFile(null)
       setCirurgiasFile(null)
       setMestreFile(null)
+      setMestreAgendamentosFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -748,9 +844,9 @@ export default function DataImportPage() {
         <Card className="border-cyan-200 bg-cyan-50/10 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="w-5 h-5 text-cyan-600" /> Planilha Mestre
+              <Users className="w-5 h-5 text-cyan-600" /> Pacientes Mestre
             </CardTitle>
-            <CardDescription>Upload planilha_mestre_migracao.csv</CardDescription>
+            <CardDescription>Upload pacientes mestre</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -774,6 +870,40 @@ export default function DataImportPage() {
                   patient_id, name, civil_name, birthdate, gender, cpf, rg, mobile_phone,
                   home_phone, email, address, number, complement, neighborhood, city, state,
                   zip_code, active, observation
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-teal-200 bg-teal-50/10 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-teal-600" /> Agendamentos Mestre
+            </CardTitle>
+            <CardDescription>Upload agenda mestre</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="mestreAgendamentos">Arquivo CSV</Label>
+                <Input
+                  id="mestreAgendamentos"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setMestreAgendamentosFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-teal-600 hover:text-teal-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  pk, patient_id, physician_id, physician_name, date, start_time, end_time,
+                  procedure_pack, observation, date_added, updated_at
                 </CollapsibleContent>
               </Collapsible>
             </div>
@@ -977,7 +1107,8 @@ export default function DataImportPage() {
               !fluxoFile &&
               !acompanhamentoFile &&
               !cirurgiasFile &&
-              !mestreFile)
+              !mestreFile &&
+              !mestreAgendamentosFile)
           }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
@@ -1045,6 +1176,40 @@ export default function DataImportPage() {
                 <div className="text-sm font-medium text-muted-foreground mt-2">Cirurgias</div>
               </div>
             </div>
+
+            {results.mestreAgendamentos.total > 0 && (
+              <div className="mt-6 border border-teal-100 dark:border-teal-900/30 rounded-lg p-5 bg-teal-50/50 dark:bg-teal-900/10">
+                <h4 className="font-semibold text-teal-700 dark:text-teal-400 mb-4 flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5" /> Resumo de Agendamentos (Mestre)
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-teal-600">
+                      {results.mestreAgendamentos.total}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Importados</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-teal-600">
+                      {results.mestreAgendamentos.concluido}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Concluído</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-teal-600">
+                      {results.mestreAgendamentos.agendado}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Agendado</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-teal-600">
+                      {results.mestreAgendamentos.medicosUnicos}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Médicos Únicos</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {results.erros.length > 0 && (
               <div className="mt-6 border-t border-red-100 dark:border-red-900/30 pt-6">

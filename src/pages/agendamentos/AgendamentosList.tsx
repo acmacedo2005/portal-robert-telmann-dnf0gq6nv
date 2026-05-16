@@ -236,7 +236,7 @@ export default function AgendamentosList() {
   }, [agendamentos, viewMode, currentDate, search, filterTipos, filterStatus, sortBy])
 
   const getStatusColor = (status: string) => {
-    if (status === 'realizada')
+    if (status === 'realizada' || status === 'concluido')
       return {
         bg: 'bg-zinc-800 dark:bg-zinc-100',
         text: 'text-white dark:text-black',
@@ -443,6 +443,7 @@ export default function AgendamentosList() {
                   <SelectItem value="todos">Todos Status</SelectItem>
                   <SelectItem value="agendado">Agendado</SelectItem>
                   <SelectItem value="realizada">Realizado</SelectItem>
+                  <SelectItem value="concluido">Concluído</SelectItem>
                   <SelectItem value="cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
@@ -595,16 +596,18 @@ export default function AgendamentosList() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                {a.status !== 'realizada' && a.status !== 'cancelado' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-green-700 bg-green-50 font-bold h-8"
-                                    onClick={() => handleMarkRealizado(a)}
-                                  >
-                                    <Check className="h-4 w-4 mr-1" /> Realizar
-                                  </Button>
-                                )}
+                                {a.status !== 'realizada' &&
+                                  a.status !== 'concluido' &&
+                                  a.status !== 'cancelado' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-green-700 bg-green-50 font-bold h-8"
+                                      onClick={() => handleMarkRealizado(a)}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" /> Realizar
+                                    </Button>
+                                  )}
                                 {canManage && (
                                   <Button
                                     size="icon"
@@ -671,16 +674,18 @@ export default function AgendamentosList() {
                             </div>
                           </div>
                           <div className="flex justify-end gap-2 pt-3 mt-3 border-t">
-                            {a.status !== 'realizada' && a.status !== 'cancelado' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-700 bg-green-50 font-bold"
-                                onClick={() => handleMarkRealizado(a)}
-                              >
-                                <Check className="h-4 w-4 mr-1.5" /> Realizar
-                              </Button>
-                            )}
+                            {a.status !== 'realizada' &&
+                              a.status !== 'concluido' &&
+                              a.status !== 'cancelado' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-700 bg-green-50 font-bold"
+                                  onClick={() => handleMarkRealizado(a)}
+                                >
+                                  <Check className="h-4 w-4 mr-1.5" /> Realizar
+                                </Button>
+                              )}
                             {canManage && (
                               <Button
                                 size="sm"
