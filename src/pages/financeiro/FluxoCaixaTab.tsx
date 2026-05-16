@@ -24,7 +24,7 @@ export function FluxoCaixaTab() {
   const [error, setError] = useState(false)
   const { toast } = useToast()
 
-  const [faturas, setFaturas] = useState<any[]>([])
+  const [pagamentos, setPagamentos] = useState<any[]>([])
   const [inadimplentes, setInadimplentes] = useState<any[]>([])
   const [despesas, setDespesas] = useState<any[]>([])
   const [categorias, setCategorias] = useState<any[]>([])
@@ -36,10 +36,10 @@ export function FluxoCaixaTab() {
       const start = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00')
       const end = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59')
 
-      const [resFaturas, resInad, resDespesas, resCategorias] = await Promise.all([
-        pb.collection('faturas').getFullList({
-          filter: `(status = "paga" || status = "parcial") && data_pagamento >= "${start}" && data_pagamento <= "${end}"`,
-          expand: 'paciente_id',
+      const [resPagamentos, resInad, resDespesas, resCategorias] = await Promise.all([
+        pb.collection('pagamentos').getFullList({
+          filter: `data_pagamento >= "${start}" && data_pagamento <= "${end}"`,
+          expand: 'fatura_id.paciente_id',
         }),
         pb.collection('faturas').getFullList({
           filter: `(status = "pendente" || status = "vencida" || status = "parcial") && data_vencimento >= "${start}" && data_vencimento <= "${end}"`,
@@ -52,7 +52,7 @@ export function FluxoCaixaTab() {
         pb.collection('categorias_financeiras').getFullList(),
       ])
 
-      setFaturas(resFaturas)
+      setPagamentos(resPagamentos)
       setInadimplentes(resInad)
       setDespesas(resDespesas)
       setCategorias(resCategorias)
@@ -83,8 +83,8 @@ export function FluxoCaixaTab() {
   }
 
   const totalReceitas = useMemo(
-    () => faturas.reduce((acc, f) => acc + (f.valor_pago || f.valor || 0), 0),
-    [faturas],
+    () => pagamentos.reduce((acc, p) => acc + (p.valor_pago || 0), 0),
+    [pagamentos],
   )
   const totalDespesas = useMemo(
     () => despesas.reduce((acc, d) => acc + (d.valor_pago || d.valor || 0), 0),
@@ -111,9 +111,9 @@ export function FluxoCaixaTab() {
 
     return days.map((d) => {
       const dayStr = format(d, 'yyyy-MM-dd')
-      const receitasDia = faturas
-        .filter((f) => f.data_pagamento?.startsWith(dayStr))
-        .reduce((sum, f) => sum + (f.valor_pago || f.valor || 0), 0)
+      const receitasDia = pagamentos
+        .filter((p) => p.data_pagamento?.startsWith(dayStr))
+        .reduce((sum, p) => sum + (p.valor_pago || 0), 0)
       const despesasDia = despesas
         .filter((d) => d.data_pagamento?.startsWith(dayStr))
         .reduce((sum, d) => sum + (d.valor_pago || d.valor || 0), 0)
@@ -131,7 +131,7 @@ export function FluxoCaixaTab() {
         Saldo: accReceitas - accDespesas,
       }
     })
-  }, [faturas, despesas, selectedDate])
+  }, [pagamentos, despesas, selectedDate])
 
   const renderMonthYearSelector = () => {
     const months = Array.from({ length: 12 }, (_, i) => {
@@ -223,7 +223,7 @@ export function FluxoCaixaTab() {
           />
           <FluxoCaixaChart data={chartData} loading={loading} formatCurrency={formatCurrency} />
           <FluxoCaixaDetails
-            faturas={faturas}
+            pagamentos={pagamentos}
             despesas={despesas}
             categorias={categorias}
             formatCurrency={formatCurrency}

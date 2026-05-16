@@ -294,7 +294,10 @@ export function FaturasTab() {
   const isPartialModal = valorRecebido < saldoAtualModal
   const isCardModal = metodo === 'cartao_credito' || metodo === 'cartao_debito'
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isVencida: boolean) => {
+    if (status !== 'paga' && isVencida) {
+      return <Badge className="bg-red-500 hover:bg-red-600 text-white">Vencida</Badge>
+    }
     switch (status) {
       case 'pendente':
         return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">Pendente</Badge>
@@ -445,7 +448,7 @@ export function FaturasTab() {
                       <TableCell className="font-semibold text-primary">
                         {formatBRL(f.saldo_restante ?? f.valor)}
                       </TableCell>
-                      <TableCell>{getStatusBadge(f.status)}</TableCell>
+                      <TableCell>{getStatusBadge(f.status, isVencida)}</TableCell>
                       <TableCell className={isVencida ? 'text-red-500 font-medium' : ''}>
                         {formatDt(f.data_vencimento)}
                       </TableCell>
@@ -524,7 +527,7 @@ export function FaturasTab() {
                           Vencimento: {formatDt(f.data_vencimento)}
                         </p>
                       </div>
-                      {getStatusBadge(f.status)}
+                      {getStatusBadge(f.status, isVencida)}
                     </div>
                     <div className="text-sm text-muted-foreground mb-2">
                       Saldo:{' '}

@@ -19,14 +19,14 @@ import {
 } from '@/components/ui/table'
 
 interface FluxoCaixaDetailsProps {
-  faturas: any[]
+  pagamentos: any[]
   despesas: any[]
   categorias: any[]
   formatCurrency: (val: number) => string
 }
 
 export function FluxoCaixaDetails({
-  faturas,
+  pagamentos,
   despesas,
   categorias,
   formatCurrency,
@@ -49,9 +49,9 @@ export function FluxoCaixaDetails({
     })
   }
 
-  const sortedFaturas = useMemo(
-    () => sortItems(faturas, receitasSort, 'data_pagamento', 'valor_pago'),
-    [faturas, receitasSort],
+  const sortedPagamentos = useMemo(
+    () => sortItems(pagamentos, receitasSort, 'data_pagamento', 'valor_pago'),
+    [pagamentos, receitasSort],
   )
 
   const filteredDespesas = useMemo(() => {
@@ -95,32 +95,34 @@ export function FluxoCaixaDetails({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Paciente</TableHead>
+                    <TableHead>Fatura (Ref)</TableHead>
                     <TableHead>Data Pagamento</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Método</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedFaturas.length === 0 ? (
+                  {sortedPagamentos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
                         Nenhuma receita encontrada.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedFaturas.map((f) => (
-                      <TableRow key={f.id}>
+                    sortedPagamentos.map((p) => (
+                      <TableRow key={p.id}>
                         <TableCell className="font-medium">
-                          {f.expand?.paciente_id?.nome || 'Desconhecido'}
+                          {p.expand?.fatura_id?.expand?.paciente_id?.nome || 'Desconhecido'}
                         </TableCell>
-                        <TableCell>{format(new Date(f.data_pagamento), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell>#{p.fatura_id?.slice(-6)}</TableCell>
+                        <TableCell>{format(new Date(p.data_pagamento), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
                           <span className="capitalize px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                            {f.status}
+                            {p.metodo?.replace('_', ' ') || 'N/A'}
                           </span>
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(f.valor_pago || f.valor)}
+                          {formatCurrency(p.valor_pago)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -130,25 +132,25 @@ export function FluxoCaixaDetails({
             </div>
 
             <div className="md:hidden divide-y">
-              {sortedFaturas.length === 0 ? (
+              {sortedPagamentos.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   Nenhuma receita encontrada.
                 </div>
               ) : (
-                sortedFaturas.map((f) => (
-                  <div key={f.id} className="p-4 flex flex-col gap-2">
+                sortedPagamentos.map((p) => (
+                  <div key={p.id} className="p-4 flex flex-col gap-2">
                     <div className="flex justify-between items-start">
                       <span className="font-bold">
-                        {f.expand?.paciente_id?.nome || 'Desconhecido'}
+                        {p.expand?.fatura_id?.expand?.paciente_id?.nome || 'Desconhecido'}
                       </span>
                       <span className="font-bold text-blue-600">
-                        {formatCurrency(f.valor_pago || f.valor)}
+                        {formatCurrency(p.valor_pago)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-sm text-muted-foreground">
-                      <span>{format(new Date(f.data_pagamento), 'dd/MM/yyyy')}</span>
+                      <span>{format(new Date(p.data_pagamento), 'dd/MM/yyyy')}</span>
                       <span className="capitalize px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                        {f.status}
+                        {p.metodo?.replace('_', ' ') || 'N/A'}
                       </span>
                     </div>
                   </div>
