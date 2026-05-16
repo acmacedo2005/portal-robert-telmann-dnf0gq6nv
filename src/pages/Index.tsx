@@ -11,9 +11,11 @@ export default function Index() {
   const [pacientes, setPacientes] = useState<Paciente[]>([])
   const [cirurgias, setCirurgias] = useState<Cirurgia[]>([])
   const [faturas, setFaturas] = useState<Fatura[]>([])
+  const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
     try {
+      setLoading(true)
       const [p, c, f] = await Promise.all([
         api.pacientes.list(),
         api.cirurgias.list(),
@@ -24,6 +26,8 @@ export default function Index() {
       setFaturas(f)
     } catch (e) {
       console.error(e)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -78,7 +82,11 @@ export default function Index() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pacientes.length}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold">{pacientes.length}</div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -87,7 +95,11 @@ export default function Index() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{cirurgiasMes}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold">{cirurgiasMes}</div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -96,11 +108,15 @@ export default function Index() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                receitaMensal,
-              )}
-            </div>
+            {loading ? (
+              <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  receitaMensal,
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -109,7 +125,11 @@ export default function Index() {
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{faturasPendentes}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold">{faturasPendentes}</div>
+            )}
           </CardContent>
         </Card>
       </div>

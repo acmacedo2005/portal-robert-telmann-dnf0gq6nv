@@ -26,13 +26,23 @@ export default function PacientesList() {
   const [search, setSearch] = useState('')
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   const [detalhesCirurgias, setDetalhesCirurgias] = useState<Cirurgia[]>([])
   const [detalhesFaturas, setDetalhesFaturas] = useState<Fatura[]>([])
 
   const loadData = async () => {
-    const data = await api.pacientes.list()
-    setPacientes(data)
+    try {
+      setLoading(true)
+      setError(false)
+      const data = await api.pacientes.list()
+      setPacientes(data)
+    } catch (err: any) {
+      if (!err?.isAbort) setError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -173,25 +183,52 @@ export default function PacientesList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((p) => (
-              <TableRow
-                key={p.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => navigate(`/pacientes/${p.id}`)}
-              >
-                <TableCell className="font-medium">{p.nome}</TableCell>
-                <TableCell>{p.cpf || '-'}</TableCell>
-                <TableCell>{(p as any).genero || '-'}</TableCell>
-                <TableCell>{p.telefone || '-'}</TableCell>
-                <TableCell>{p.cidade ? `${p.cidade}/${p.estado}` : '-'}</TableCell>
-              </TableRow>
-            ))}
-            {filtered.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : error ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
-                  Nenhum paciente encontrado
+                <TableCell colSpan={5} className="text-center py-8 text-destructive">
+                  Ocorreu um erro ao carregar os dados. Verifique a conexão com o banco.
                 </TableCell>
               </TableRow>
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nenhum paciente encontrado no sistema.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((p) => (
+                <TableRow
+                  key={p.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => navigate(`/pacientes/${p.id}`)}
+                >
+                  <TableCell className="font-medium">{p.nome}</TableCell>
+                  <TableCell>{p.cpf || '-'}</TableCell>
+                  <TableCell>{(p as any).genero || '-'}</TableCell>
+                  <TableCell>{p.telefone || '-'}</TableCell>
+                  <TableCell>{p.cidade ? `${p.cidade}/${p.estado}` : '-'}</TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
