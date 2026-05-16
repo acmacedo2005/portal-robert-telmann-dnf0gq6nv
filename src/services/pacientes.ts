@@ -47,3 +47,7 @@ export const getPacienteLogs = async (pacienteId: string): Promise<RecordModel[]
 export const createPacienteLog = async (data: any): Promise<RecordModel> => {
   return pb.collection('pacientes_logs').create(data)
 }
+
+export const sanitizePacientesNames = async (): Promise<{ corrected: number }> => {
+  return pb.send('/backend/v1/pacientes/sanitize', { method: 'POST' })
+}

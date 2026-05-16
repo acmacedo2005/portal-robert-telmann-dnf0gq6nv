@@ -4,9 +4,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
-import { Settings, Save } from 'lucide-react'
+import { Settings, Save, Wrench } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { sanitizePacientesNames } from '@/services/pacientes'
+import { Separator } from '@/components/ui/separator'
 
 export default function ConfiguracoesTab() {
   const [formData, setFormData] = useState<any>({
@@ -17,6 +19,7 @@ export default function ConfiguracoesTab() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sanitizing, setSanitizing] = useState(false)
   const { toast } = useToast()
 
   const loadConfig = () => {
@@ -33,6 +36,18 @@ export default function ConfiguracoesTab() {
     loadConfig()
   }, [toast])
   useRealtime('configuracoes_gerais', loadConfig)
+
+  const handleSanitize = async () => {
+    try {
+      setSanitizing(true)
+      const res = await sanitizePacientesNames()
+      toast({ title: `Total de nomes corrigidos: ${res.corrected}` })
+    } catch (e) {
+      toast({ title: 'Erro ao corrigir nomes', variant: 'destructive' })
+    } finally {
+      setSanitizing(false)
+    }
+  }
 
   const handleSave = async () => {
     try {
@@ -112,6 +127,30 @@ export default function ConfiguracoesTab() {
         <Button onClick={handleSave} disabled={saving} className="mt-2" size="lg">
           <Save className="h-4 w-4 mr-2" />
           {saving ? 'Salvando...' : 'Salvar Configurações'}
+        </Button>
+      </div>
+
+      <Separator className="my-2" />
+
+      <div className="flex items-center gap-2 border-b pb-4">
+        <Wrench className="h-5 w-5 text-zinc-500" />
+        <h2 className="text-lg font-semibold">Ferramentas de Manutenção</h2>
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Limpeza de Nomes de Pacientes</Label>
+        <p className="text-sm text-zinc-500 mb-2">
+          Esta ferramenta verifica todos os pacientes e remove IDs numéricos antigos do início dos
+          nomes.
+        </p>
+        <Button
+          onClick={handleSanitize}
+          disabled={sanitizing}
+          variant="secondary"
+          className="w-full sm:w-auto"
+        >
+          <Wrench className="h-4 w-4 mr-2" />
+          {sanitizing ? 'Corrigindo...' : 'Corrigir Nomes dos Pacientes'}
         </Button>
       </div>
     </div>
