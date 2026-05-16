@@ -334,7 +334,7 @@ export default function VendasList() {
                               setDetailsModalOpen(true)
                             }}
                           >
-                            <Activity className="w-4 h-4 mr-2" /> Timeline
+                            <Activity className="w-4 h-4 mr-2" /> Timeline do Paciente
                           </Button>
                           <Button
                             size="icon"
@@ -425,7 +425,7 @@ export default function VendasList() {
                           setDetailsModalOpen(true)
                         }}
                       >
-                        <Activity className="w-4 h-4 mr-2" /> Timeline
+                        <Activity className="w-4 h-4 mr-2" /> Timeline do Paciente
                       </Button>
                       <Button
                         size="sm"

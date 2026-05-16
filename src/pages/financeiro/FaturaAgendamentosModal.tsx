@@ -61,7 +61,7 @@ export function FaturaAgendamentosModal({ fatura, isOpen, onClose }: any) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
-            Contexto Clínico - Agendamentos
+            Detalhes do Agendamento
           </DialogTitle>
           <DialogDescription>
             Histórico de agendamentos para o paciente:{' '}

@@ -97,7 +97,7 @@ export function VendaDetailsSheet({ venda, isOpen, onClose }: any) {
           date: new Date(venda.data_venda),
           type: 'sale',
           title: 'Venda Registrada',
-          description: `Tipo: ${venda.tipo}`,
+          description: `Tipo: ${venda.tipo?.replace('_', ' ') || '-'}`,
           value: venda.valor_total,
           status: venda.status,
         })
@@ -109,7 +109,7 @@ export function VendaDetailsSheet({ venda, isOpen, onClose }: any) {
             date: new Date(ag.data_agendamento),
             type: 'appointment',
             title: `Agendamento: ${ag.tipo}`,
-            description: `Profissional: ${ag.expand?.profissional_id?.name || '-'}`,
+            description: `Profissional: ${ag.expand?.profissional_id?.name || '-'} ${ag.hora_agendamento ? `| Horário: ${ag.hora_agendamento}` : ''}`,
             status: ag.status,
           })
         })
@@ -191,7 +191,7 @@ export function VendaDetailsSheet({ venda, isOpen, onClose }: any) {
         <ScrollArea className="flex-1 p-6">
           <Tabs defaultValue="timeline" className="w-full">
             <TabsList className="w-full grid grid-cols-2 mb-6">
-              <TabsTrigger value="timeline">Timeline Geral</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline do Paciente</TabsTrigger>
               <TabsTrigger value="history">Histórico Clínico</TabsTrigger>
             </TabsList>
 

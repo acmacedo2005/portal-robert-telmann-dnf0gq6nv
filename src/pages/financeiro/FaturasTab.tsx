@@ -454,14 +454,28 @@ export function FaturasTab() {
                       </TableCell>
                       <TableCell className="text-sm">
                         {nextAgendamentoByPaciente[f.paciente_id] ? (
-                          <div className="flex flex-col">
+                          <div className="flex flex-col gap-1">
                             <span className="font-semibold">
                               {formatDt(nextAgendamentoByPaciente[f.paciente_id].data_agendamento)}{' '}
                               {nextAgendamentoByPaciente[f.paciente_id].hora_agendamento || ''}
                             </span>
-                            <span className="text-xs text-muted-foreground truncate max-w-[150px]">
-                              {nextAgendamentoByPaciente[f.paciente_id].tipo}
+                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                              {nextAgendamentoByPaciente[f.paciente_id].tipo} • Profissional:{' '}
+                              {nextAgendamentoByPaciente[f.paciente_id].expand?.profissional_id
+                                ?.name || 'N/A'}
                             </span>
+                            <Badge
+                              variant={
+                                nextAgendamentoByPaciente[f.paciente_id].status === 'agendado'
+                                  ? 'default'
+                                  : nextAgendamentoByPaciente[f.paciente_id].status === 'cancelado'
+                                    ? 'destructive'
+                                    : 'secondary'
+                              }
+                              className="w-fit text-[10px] uppercase"
+                            >
+                              {nextAgendamentoByPaciente[f.paciente_id].status}
+                            </Badge>
                           </div>
                         ) : (
                           <span className="text-muted-foreground italic text-xs">
@@ -473,7 +487,7 @@ export function FaturasTab() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          title="Contexto Clínico"
+                          title="Ver Detalhes do Agendamento"
                           onClick={() => setAgendamentosModalFatura(f)}
                         >
                           <Activity className="h-4 w-4 text-blue-500" />
@@ -539,10 +553,21 @@ export function FaturasTab() {
                     <div className="text-sm text-muted-foreground mb-4 bg-muted/50 p-2 rounded-md">
                       <p className="font-semibold text-xs mb-1">Próximo Agendamento:</p>
                       {nextAgendamentoByPaciente[f.paciente_id] ? (
-                        <span>
-                          {formatDt(nextAgendamentoByPaciente[f.paciente_id].data_agendamento)} -{' '}
-                          {nextAgendamentoByPaciente[f.paciente_id].tipo}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span>
+                            {formatDt(nextAgendamentoByPaciente[f.paciente_id].data_agendamento)}{' '}
+                            {nextAgendamentoByPaciente[f.paciente_id].hora_agendamento || ''} -{' '}
+                            {nextAgendamentoByPaciente[f.paciente_id].tipo}
+                          </span>
+                          <span className="text-xs">
+                            Prof:{' '}
+                            {nextAgendamentoByPaciente[f.paciente_id].expand?.profissional_id
+                              ?.name || 'N/A'}
+                          </span>
+                          <Badge variant="secondary" className="w-fit text-[10px] uppercase">
+                            {nextAgendamentoByPaciente[f.paciente_id].status}
+                          </Badge>
+                        </div>
                       ) : (
                         <span className="italic text-xs">Nenhum</span>
                       )}
@@ -552,7 +577,7 @@ export function FaturasTab() {
                         size="icon"
                         variant="outline"
                         onClick={() => setAgendamentosModalFatura(f)}
-                        title="Contexto Clínico"
+                        title="Ver Detalhes do Agendamento"
                       >
                         <Activity className="h-4 w-4 text-blue-500" />
                       </Button>
