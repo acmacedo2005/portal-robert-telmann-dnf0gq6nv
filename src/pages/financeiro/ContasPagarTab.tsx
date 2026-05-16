@@ -64,8 +64,11 @@ const formatBRL = (val: number) =>
   }).format(val || 0)
 const formatDt = (d?: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '-')
 
+import pb from '@/lib/pocketbase/client'
+
 export function ContasPagarTab() {
   const [contas, setContas] = useState<ContaPagar[]>([])
+  const [categorias, setCategorias] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,7 +88,12 @@ export function ContasPagarTab() {
     setLoading(true)
     setError(null)
     try {
-      setContas(await getContasPagar())
+      const [resContas, resCategorias] = await Promise.all([
+        getContasPagar(),
+        pb.collection('categorias_financeiras').getFullList(),
+      ])
+      setContas(resContas)
+      setCategorias(resCategorias)
     } catch (err) {
       setError('Erro ao carregar despesas. Verifique sua conexão.')
     } finally {
@@ -139,7 +147,9 @@ export function ContasPagarTab() {
           const dt = c.data_vencimento?.slice(0, 10) || ''
           return (
             (statusFilter === 'all' || c.status === statusFilter) &&
-            (categoriaFilter === 'all' || c.categoria === categoriaFilter) &&
+            (categoriaFilter === 'all' ||
+              c.categoria === categoriaFilter ||
+              c.categoria_id === categoriaFilter) &&
             (!search || c.fornecedor.toLowerCase().includes(search.toLowerCase())) &&
             (!dateFrom || dt >= dateFrom) &&
             (!dateTo || dt <= dateTo)
@@ -163,12 +173,15 @@ export function ContasPagarTab() {
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    const catVal = fd.get('categoria') as string
+    const isCustomCat = categorias.some((c) => c.id === catVal)
     try {
       await createContaPagar({
         descricao: fd.get('descricao') as string,
         fornecedor: fd.get('fornecedor') as string,
         valor: parseFloat(fd.get('valor') as string),
-        categoria: fd.get('categoria') as any,
+        categoria: isCustomCat ? 'outros' : (catVal as any),
+        categoria_id: isCustomCat ? catVal : '',
         status: 'pendente',
         data_vencimento: `${fd.get('data_vencimento')} 12:00:00.000Z`,
       })
@@ -183,12 +196,15 @@ export function ContasPagarTab() {
     e.preventDefault()
     if (!editingConta) return
     const fd = new FormData(e.currentTarget)
+    const catVal = fd.get('categoria') as string
+    const isCustomCat = categorias.some((c) => c.id === catVal)
     try {
       await updateContaPagar(editingConta.id, {
         descricao: fd.get('descricao') as string,
         fornecedor: fd.get('fornecedor') as string,
         valor: parseFloat(fd.get('valor') as string),
-        categoria: fd.get('categoria') as any,
+        categoria: isCustomCat ? 'outros' : (catVal as any),
+        categoria_id: isCustomCat ? catVal : '',
         data_vencimento: `${fd.get('data_vencimento')} 12:00:00.000Z`,
       })
       toast.success('Despesa atualizada com sucesso')
@@ -307,6 +323,11 @@ export function ContasPagarTab() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas Categorias</SelectItem>
+            {categorias.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome}
+              </SelectItem>
+            ))}
             <SelectItem value="aluguel">Aluguel</SelectItem>
             <SelectItem value="fornecedores">Fornecedores</SelectItem>
             <SelectItem value="salarios">Salários</SelectItem>
@@ -386,7 +407,9 @@ export function ContasPagarTab() {
                       </TableCell>
                       <TableCell className="font-medium">{c.descricao}</TableCell>
                       <TableCell>{c.fornecedor}</TableCell>
-                      <TableCell className="capitalize">{c.categoria.replace('_', ' ')}</TableCell>
+                      <TableCell className="capitalize">
+                        {c.expand?.categoria_id?.nome || c.categoria?.replace('_', ' ')}
+                      </TableCell>
                       <TableCell>{formatBRL(c.valor)}</TableCell>
                       <TableCell>
                         <Badge
@@ -465,7 +488,8 @@ export function ContasPagarTab() {
                         isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground',
                       )}
                     >
-                      Venc: {formatDt(c.data_vencimento)} | {c.categoria.replace('_', ' ')}
+                      Venc: {formatDt(c.data_vencimento)} |{' '}
+                      {c.expand?.categoria_id?.nome || c.categoria?.replace('_', ' ')}
                     </div>
                     <div className="flex justify-between items-end">
                       <p className="font-bold text-lg">{formatBRL(c.valor)}</p>
@@ -522,6 +546,11 @@ export function ContasPagarTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
                   <SelectItem value="aluguel">Aluguel</SelectItem>
                   <SelectItem value="fornecedores">Fornecedores</SelectItem>
                   <SelectItem value="salarios">Salários</SelectItem>
@@ -562,11 +591,20 @@ export function ContasPagarTab() {
             </div>
             <div className="space-y-2">
               <Label>Categoria *</Label>
-              <Select name="categoria" required defaultValue={editingConta?.categoria}>
+              <Select
+                name="categoria"
+                required
+                defaultValue={editingConta?.categoria_id || editingConta?.categoria}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
                   <SelectItem value="aluguel">Aluguel</SelectItem>
                   <SelectItem value="fornecedores">Fornecedores</SelectItem>
                   <SelectItem value="salarios">Salários</SelectItem>

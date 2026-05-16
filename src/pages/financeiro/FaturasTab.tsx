@@ -210,7 +210,7 @@ export function FaturasTab() {
         saldo_restante: newSaldo,
         parcelas_restantes: parcelasRest,
         data_vencimento: dataProx,
-        ...(newStatus === 'paga' ? { data_pagamento: dataPagamento } : {}),
+        data_pagamento: dataPagamento,
       })
 
       if (isCard && taxaPerc > 0) {

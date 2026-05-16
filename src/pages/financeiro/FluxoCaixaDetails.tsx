@@ -218,7 +218,7 @@ export function FluxoCaixaDetails({
                       <TableRow key={d.id}>
                         <TableCell className="font-medium">{d.fornecedor}</TableCell>
                         <TableCell className="capitalize">
-                          {d.expand?.categoria_id?.nome || d.categoria}
+                          {d.expand?.categoria_id?.nome || d.categoria?.replace('_', ' ')}
                         </TableCell>
                         <TableCell>{format(new Date(d.data_pagamento), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-right font-medium text-red-600">
@@ -248,7 +248,7 @@ export function FluxoCaixaDetails({
                     <div className="flex justify-between items-center text-sm text-muted-foreground">
                       <span>{format(new Date(d.data_pagamento), 'dd/MM/yyyy')}</span>
                       <span className="capitalize">
-                        {d.expand?.categoria_id?.nome || d.categoria}
+                        {d.expand?.categoria_id?.nome || d.categoria?.replace('_', ' ')}
                       </span>
                     </div>
                   </div>

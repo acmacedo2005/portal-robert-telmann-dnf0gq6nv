@@ -38,11 +38,11 @@ export function FluxoCaixaTab() {
 
       const [resFaturas, resInad, resDespesas, resCategorias] = await Promise.all([
         pb.collection('faturas').getFullList({
-          filter: `status = "paga" && data_pagamento >= "${start}" && data_pagamento <= "${end}"`,
+          filter: `(status = "paga" || status = "parcial") && data_pagamento >= "${start}" && data_pagamento <= "${end}"`,
           expand: 'paciente_id',
         }),
         pb.collection('faturas').getFullList({
-          filter: `(status = "pendente" || status = "vencida") && data_vencimento >= "${start}" && data_vencimento <= "${end}"`,
+          filter: `(status = "pendente" || status = "vencida" || status = "parcial") && data_vencimento >= "${start}" && data_vencimento <= "${end}"`,
           expand: 'paciente_id',
         }),
         pb.collection('contas_pagar').getFullList({
@@ -92,7 +92,12 @@ export function FluxoCaixaTab() {
   )
   const saldoMes = totalReceitas - totalDespesas
   const totalInadimplencia = useMemo(
-    () => inadimplentes.reduce((acc, f) => acc + (f.valor || 0), 0),
+    () =>
+      inadimplentes.reduce((acc, f) => {
+        const isOverdue = f.data_vencimento?.slice(0, 10) < new Date().toISOString().slice(0, 10)
+        if (!isOverdue) return acc
+        return acc + (f.saldo_restante ?? f.valor ?? 0)
+      }, 0),
     [inadimplentes],
   )
 
