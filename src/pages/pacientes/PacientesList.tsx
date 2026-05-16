@@ -18,6 +18,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Search, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+import { CsvValidatorDialog } from '@/components/pacientes/CsvValidatorDialog'
 
 export default function PacientesList() {
   const navigate = useNavigate()
@@ -96,65 +97,68 @@ export default function PacientesList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Novo Paciente
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="overflow-y-auto w-full sm:max-w-md">
-            <SheetHeader className="mb-4">
-              <SheetTitle>Cadastrar Paciente</SheetTitle>
-            </SheetHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Nome Completo *</Label>
-                <Input name="nome" required />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>CPF</Label>
-                  <Input name="cpf" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Gênero</Label>
-                  <Input name="genero" placeholder="M/F/Outro" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Data Nascimento</Label>
-                  <Input type="date" name="data_nascimento" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Telefone</Label>
-                  <Input name="telefone" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" name="email" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Endereço</Label>
-                <Input name="endereco" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cidade</Label>
-                  <Input name="cidade" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Estado</Label>
-                  <Input name="estado" maxLength={2} placeholder="SP" />
-                </div>
-              </div>
-              <Button type="submit" className="w-full mt-4">
-                Salvar
+        <div className="flex flex-col sm:flex-row gap-2">
+          <CsvValidatorDialog pacientes={pacientes} />
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Novo Paciente
               </Button>
-            </form>
-          </SheetContent>
-        </Sheet>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto w-full sm:max-w-md">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Cadastrar Paciente</SheetTitle>
+              </SheetHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nome Completo *</Label>
+                  <Input name="nome" required />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>CPF</Label>
+                    <Input name="cpf" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Gênero</Label>
+                    <Input name="genero" placeholder="M/F/Outro" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data Nascimento</Label>
+                    <Input type="date" name="data_nascimento" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Telefone</Label>
+                    <Input name="telefone" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input type="email" name="email" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Endereço</Label>
+                  <Input name="endereco" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Cidade</Label>
+                    <Input name="cidade" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Estado</Label>
+                    <Input name="estado" maxLength={2} placeholder="SP" />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full mt-4">
+                  Salvar
+                </Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       <div className="rounded-md border">
