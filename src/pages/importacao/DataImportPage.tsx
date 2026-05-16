@@ -4,7 +4,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { Database, Upload, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Database,
+  Upload,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  FileSpreadsheet,
+  Info,
+  ChevronDown,
+} from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
 import {
@@ -72,7 +82,18 @@ export default function DataImportPage() {
         const nomeRaw = row.nome_cliente || row.nome || row.cliente || ''
         const telRaw = row.telefone_cliente || row.telefone || ''
         const key = `${normName(nomeRaw)}|${normPhone(telRaw)}`
-        return patientMap.get(key)
+
+        if (patientMap.has(key)) return patientMap.get(key)
+
+        // Fallback to name only if phone is missing
+        if (normName(nomeRaw)) {
+          for (const [k, v] of patientMap.entries()) {
+            if (k.startsWith(normName(nomeRaw) + '|')) {
+              return v
+            }
+          }
+        }
+        return null
       }
 
       // 2. Import Pessoas
@@ -80,11 +101,12 @@ export default function DataImportPage() {
         const text = await readFile(pessoasFile)
         const data = parseCSV(text)
 
-        for (const row of data) {
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
           const nome = row.nome || getField(row, ['nome'])
           const telefone = row.telefone || getField(row, ['telefone'])
           if (!nome) {
-            logs.push(`Paciente ignorado: Nome não fornecido.`)
+            logs.push(`Linha ${i + 2} (Pessoas): Paciente ignorado - Nome não fornecido.`)
             continue
           }
 
@@ -98,16 +120,19 @@ export default function DataImportPage() {
                 endereco: row.endereco || row.rua || '',
                 numero: row.numero || '',
                 complemento: row.complemento || '',
+                bairro: row.bairro || '',
                 cidade: row.cidade || '',
                 estado: row.estado || '',
                 cep: row.cep || '',
-                data_nascimento: parseBrDate(row.data_nascimento || row.nascimento),
+                data_nascimento: parseBrDate(row.data_nascimento || row.nascimento) || null,
                 genero: row.genero || '',
               })
               patientMap.set(key, novo.id)
               pacientesImportados++
             } catch (err: any) {
-              logs.push(`Erro ao importar paciente ${nome}: ${err.message}`)
+              logs.push(
+                `Linha ${i + 2} (Pessoas): Erro ao importar paciente ${nome} - ${err.message}`,
+              )
             }
           }
         }
@@ -118,11 +143,12 @@ export default function DataImportPage() {
         const text = await readFile(vendasFile)
         const data = parseCSV(text)
 
-        for (const row of data) {
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
           const pid = findPatient(row)
           if (!pid) {
             logs.push(
-              `Paciente não encontrado para venda: ${row.nome_cliente || 'Desconhecido'} ${row.telefone_cliente || ''}`,
+              `Linha ${i + 2} (Vendas): Paciente não encontrado para venda (${row.nome_cliente || 'Desconhecido'})`,
             )
             continue
           }
@@ -149,7 +175,7 @@ export default function DataImportPage() {
             vendasImportadas++
           } catch (err: any) {
             logs.push(
-              `Erro ao importar venda para ${row.nome_cliente || 'Desconhecido'}: ${err.message}`,
+              `Linha ${i + 2} (Vendas): Erro ao importar venda para ${row.nome_cliente || 'Desconhecido'} - ${err.message}`,
             )
           }
         }
@@ -160,7 +186,8 @@ export default function DataImportPage() {
         const text = await readFile(financeiroFile)
         const data = parseCSV(text)
 
-        for (const row of data) {
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
           const tipo = (row.tipo || '').toLowerCase()
           const valor = parseBrCurrency(row.valor)
           const dtVencimento = parseBrDate(row.data_vencimento) || new Date().toISOString()
@@ -170,7 +197,7 @@ export default function DataImportPage() {
             const pid = findPatient(row)
             if (!pid) {
               logs.push(
-                `Paciente não encontrado para receita: ${row.nome_cliente || 'Desconhecido'}`,
+                `Linha ${i + 2} (Financeiro): Fatura ignorada - Paciente não encontrado (${row.nome_cliente || row.descricao || 'Desconhecido'})`,
               )
               continue
             }
@@ -189,7 +216,7 @@ export default function DataImportPage() {
               })
               receitasGeradas++
             } catch (err: any) {
-              logs.push(`Erro ao importar receita: ${err.message}`)
+              logs.push(`Linha ${i + 2} (Financeiro): Erro ao importar receita - ${err.message}`)
             }
           } else if (tipo === 'despesa') {
             try {
@@ -213,7 +240,7 @@ export default function DataImportPage() {
 
               await pb.collection('contas_pagar').create({
                 descricao: row.descricao || 'Despesa Importada',
-                fornecedor: row.fornecedor || row.nome_cliente || 'Desconhecido',
+                fornecedor: row.nome_cliente || row.fornecedor || 'Desconhecido',
                 valor: valor,
                 status: status,
                 categoria: categoria,
@@ -223,11 +250,11 @@ export default function DataImportPage() {
               })
               despesasGeradas++
             } catch (err: any) {
-              logs.push(`Erro ao importar despesa: ${err.message}`)
+              logs.push(`Linha ${i + 2} (Financeiro): Erro ao importar despesa - ${err.message}`)
             }
           } else {
             logs.push(
-              `Linha financeira ignorada: Tipo '${tipo}' inválido (esperado 'receita' ou 'despesa').`,
+              `Linha ${i + 2} (Financeiro): Ignorada - Tipo '${tipo}' inválido (esperado 'receita' ou 'despesa').`,
             )
           }
         }
@@ -241,11 +268,11 @@ export default function DataImportPage() {
         erros: logs,
       })
 
-      toast({ title: 'Sucesso', description: 'Processo de importação concluído.' })
+      toast({ title: 'Sucesso', description: 'Processo de importação concluído com sucesso.' })
     } catch (error: any) {
       toast({
-        title: 'Erro',
-        description: error.message || 'Erro durante a importação.',
+        title: 'Erro de Processamento',
+        description: error.message || 'Ocorreu um erro durante a importação.',
         variant: 'destructive',
       })
     } finally {
@@ -276,7 +303,7 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5" /> 1. Pessoas
+              <FileSpreadsheet className="w-5 h-5 text-blue-600" /> 1. Pessoas
             </CardTitle>
             <CardDescription>Upload do arquivo pessoas.csv</CardDescription>
           </CardHeader>
@@ -292,10 +319,17 @@ export default function DataImportPage() {
                   disabled={loading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Será feita a validação de unicidade (nome + telefone) para evitar duplicação de
-                pacientes.
-              </p>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  nome, telefone, email, endereco, numero, complemento, bairro, cidade, estado, cep,
+                  data_nascimento, genero
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -303,9 +337,9 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5" /> 2. Vendas
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> 2. Vendas
             </CardTitle>
-            <CardDescription>Upload do arquivo propostas.csv</CardDescription>
+            <CardDescription>Upload do arquivo propostas_comerciais.csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -319,9 +353,17 @@ export default function DataImportPage() {
                   disabled={loading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                As vendas serão vinculadas aos pacientes através do nome e telefone.
-              </p>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-emerald-600 hover:text-emerald-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  id_proposta, nome_cliente, telefone_cliente, data_proposta, valor_total,
+                  entrada_paga, forma_pagamento, status, observacoes
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -329,7 +371,7 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5" /> 3. Financeiro
+              <FileSpreadsheet className="w-5 h-5 text-purple-600" /> 3. Financeiro
             </CardTitle>
             <CardDescription>Upload do arquivo financeiro.csv</CardDescription>
           </CardHeader>
@@ -345,9 +387,17 @@ export default function DataImportPage() {
                   disabled={loading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Separação automática entre Receitas (Faturas) e Despesas (Contas a Pagar).
-              </p>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-purple-600 hover:text-purple-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  id_financeiro, tipo, descricao, valor, data_vencimento, data_pagamento, status,
+                  categoria, forma_pagamento, nome_cliente, telefone_cliente
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -357,7 +407,7 @@ export default function DataImportPage() {
         <Button
           onClick={handleImport}
           disabled={loading || (!pessoasFile && !vendasFile && !financeiroFile)}
-          className="w-full md:w-auto h-12 px-8 text-base"
+          className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
           {loading ? (
             <>
@@ -382,31 +432,39 @@ export default function DataImportPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-background border rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-primary">{results.pacientes}</div>
-                <div className="text-sm text-muted-foreground mt-1">Pacientes Importados</div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-primary">{results.pacientes}</div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">
+                  Pacientes Importados
+                </div>
               </div>
-              <div className="bg-white dark:bg-background border rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-primary">{results.vendas}</div>
-                <div className="text-sm text-muted-foreground mt-1">Vendas Vinculadas</div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-primary">{results.vendas}</div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">
+                  Vendas Vinculadas
+                </div>
               </div>
-              <div className="bg-white dark:bg-background border rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-primary">{results.receitas}</div>
-                <div className="text-sm text-muted-foreground mt-1">Faturas (Receitas)</div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-primary">{results.receitas}</div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">
+                  Faturas (Receitas)
+                </div>
               </div>
-              <div className="bg-white dark:bg-background border rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-primary">{results.despesas}</div>
-                <div className="text-sm text-muted-foreground mt-1">Despesas Geradas</div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-primary">{results.despesas}</div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">
+                  Contas a Pagar (Despesas)
+                </div>
               </div>
             </div>
 
             {results.erros.length > 0 && (
-              <div className="mt-6 border-t pt-6">
-                <h4 className="font-semibold text-amber-600 flex items-center gap-2 mb-3">
+              <div className="mt-6 border-t border-red-100 dark:border-red-900/30 pt-6">
+                <h4 className="font-semibold text-red-600 flex items-center gap-2 mb-3">
                   <AlertCircle className="w-5 h-5" /> Avisos e Falhas ({results.erros.length})
                 </h4>
                 <div className="bg-white dark:bg-black rounded-md border p-4 max-h-64 overflow-y-auto">
-                  <ul className="text-sm text-muted-foreground font-mono space-y-2">
+                  <ul className="text-sm text-slate-600 dark:text-slate-400 font-mono space-y-2">
                     {results.erros.map((err, i) => (
                       <li
                         key={i}

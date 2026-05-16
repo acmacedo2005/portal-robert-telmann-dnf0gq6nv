@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T15:10:07.663Z",
+  "generatedAt": "2026-05-16T15:26:32.838Z",
   "collections": [
     {
       "name": "users",
@@ -245,6 +245,12 @@
         },
         {
           "name": "genero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "bairro",
           "type": "text",
           "required": false,
           "system": false

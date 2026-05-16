@@ -37,12 +37,20 @@ export function parseCSV(text: string): any[] {
   return data
 }
 
-export function parseBrCurrency(val: string): number {
-  if (!val) return 0
-  let clean = val.replace(/[R$\s]/g, '').trim()
-  clean = clean.replace(/\./g, '').replace(',', '.')
+export function parseBrCurrency(val: string | number): number {
+  if (val === undefined || val === null || val === '') return 0
+  if (typeof val === 'number') return Number(val.toFixed(2))
+  let clean = val
+    .toString()
+    .replace(/[R$\s]/g, '')
+    .trim()
+  if (clean.includes(',') && clean.includes('.')) {
+    clean = clean.replace(/\./g, '').replace(',', '.')
+  } else if (clean.includes(',')) {
+    clean = clean.replace(',', '.')
+  }
   const num = parseFloat(clean)
-  return isNaN(num) ? 0 : num
+  return isNaN(num) ? 0 : Number(num.toFixed(2))
 }
 
 export function parseBrDate(val: string): string {
@@ -50,6 +58,10 @@ export function parseBrDate(val: string): string {
   const match = val.match(/(\d{2})[/-](\d{2})[/-](\d{4})/)
   if (match) {
     return `${match[3]}-${match[2]}-${match[1]} 12:00:00.000Z`
+  }
+  const isoMatch = val.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]} 12:00:00.000Z`
   }
   return val
 }
