@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,8 @@ import {
   FileSpreadsheet,
   Info,
   ChevronDown,
+  Download,
+  TrendingDown,
 } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
@@ -31,6 +34,7 @@ export default function DataImportPage() {
   const [pessoasFile, setPessoasFile] = useState<File | null>(null)
   const [vendasFile, setVendasFile] = useState<File | null>(null)
   const [financeiroFile, setFinanceiroFile] = useState<File | null>(null)
+  const [fluxoFile, setFluxoFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -38,6 +42,7 @@ export default function DataImportPage() {
     vendas: number
     receitas: number
     despesas: number
+    fluxo: number
     erros: string[]
   } | null>(null)
 
@@ -51,7 +56,7 @@ export default function DataImportPage() {
   }
 
   const handleImport = async () => {
-    if (!pessoasFile && !vendasFile && !financeiroFile) {
+    if (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile) {
       toast({
         title: 'Aviso',
         description: 'Selecione pelo menos um arquivo para importar.',
@@ -68,6 +73,7 @@ export default function DataImportPage() {
     let vendasImportadas = 0
     let receitasGeradas = 0
     let despesasGeradas = 0
+    let fluxoImportados = 0
 
     try {
       // 1. Fetch existing patients to build lookup map
@@ -85,7 +91,6 @@ export default function DataImportPage() {
 
         if (patientMap.has(key)) return patientMap.get(key)
 
-        // Fallback to name only if phone is missing
         if (normName(nomeRaw)) {
           for (const [k, v] of patientMap.entries()) {
             if (k.startsWith(normName(nomeRaw) + '|')) {
@@ -148,7 +153,7 @@ export default function DataImportPage() {
           const pid = findPatient(row)
           if (!pid) {
             logs.push(
-              `Linha ${i + 2} (Vendas): Paciente não encontrado para venda (${row.nome_cliente || 'Desconhecido'})`,
+              `Linha ${i + 2} (Vendas): Paciente não encontrado (${row.nome_cliente || 'Desconhecido'})`,
             )
             continue
           }
@@ -174,9 +179,7 @@ export default function DataImportPage() {
             })
             vendasImportadas++
           } catch (err: any) {
-            logs.push(
-              `Linha ${i + 2} (Vendas): Erro ao importar venda para ${row.nome_cliente || 'Desconhecido'} - ${err.message}`,
-            )
+            logs.push(`Linha ${i + 2} (Vendas): Erro ao importar venda - ${err.message}`)
           }
         }
       }
@@ -196,9 +199,7 @@ export default function DataImportPage() {
           if (tipo === 'receita') {
             const pid = findPatient(row)
             if (!pid) {
-              logs.push(
-                `Linha ${i + 2} (Financeiro): Fatura ignorada - Paciente não encontrado (${row.nome_cliente || row.descricao || 'Desconhecido'})`,
-              )
+              logs.push(`Linha ${i + 2} (Financeiro): Receita ignorada - Paciente não encontrado`)
               continue
             }
 
@@ -224,19 +225,7 @@ export default function DataImportPage() {
               if (!['pendente', 'vencida', 'paga'].includes(status)) status = 'pendente'
 
               let categoria = (row.categoria || '').toLowerCase()
-              const validCategorias = [
-                'aluguel',
-                'fornecedores',
-                'salarios',
-                'utilitarios',
-                'outros',
-                'taxas_cartao',
-                'faturas',
-                'contas_pagar',
-                'receita',
-                'despesa',
-              ]
-              if (!validCategorias.includes(categoria)) categoria = 'outros'
+              if (!categoria) categoria = 'outros'
 
               await pb.collection('contas_pagar').create({
                 descricao: row.descricao || 'Despesa Importada',
@@ -252,10 +241,44 @@ export default function DataImportPage() {
             } catch (err: any) {
               logs.push(`Linha ${i + 2} (Financeiro): Erro ao importar despesa - ${err.message}`)
             }
-          } else {
+          }
+        }
+      }
+
+      // 5. Import Fluxo de Pagamentos
+      if (fluxoFile) {
+        const text = await readFile(fluxoFile)
+        const data = parseCSV(text)
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const vencimentoRaw = row.vencimento || row.data_vencimento
+          const vencimento = parseBrDate(vencimentoRaw)
+          const valor = parseBrCurrency(row.valor)
+          const fornecedor = row.fornecedor || row.nome || row.descricao || ''
+
+          if (!vencimento || !fornecedor) {
             logs.push(
-              `Linha ${i + 2} (Financeiro): Ignorada - Tipo '${tipo}' inválido (esperado 'receita' ou 'despesa').`,
+              `Linha ${i + 2} (Fluxo Pagamentos): Ignorada - Vencimento ou Fornecedor ausentes.`,
             )
+            continue
+          }
+
+          try {
+            let status = (row.status || '').toLowerCase()
+            if (!['pendente', 'pago', 'vencido', 'cancelado'].includes(status)) status = 'pendente'
+
+            await pb.collection('fluxo_pagamentos').create({
+              vencimento: vencimento,
+              valor: valor,
+              fornecedor: fornecedor,
+              observacoes: row.observacoes || '',
+              status: status,
+              data_pagto: parseBrDate(row.data_pagto || row.data_pagamento) || null,
+            })
+            fluxoImportados++
+          } catch (err: any) {
+            logs.push(`Linha ${i + 2} (Fluxo Pagamentos): Erro - ${err.message}`)
           }
         }
       }
@@ -265,6 +288,7 @@ export default function DataImportPage() {
         vendas: vendasImportadas,
         receitas: receitasGeradas,
         despesas: despesasGeradas,
+        fluxo: fluxoImportados,
         erros: logs,
       })
 
@@ -280,6 +304,7 @@ export default function DataImportPage() {
       setPessoasFile(null)
       setVendasFile(null)
       setFinanceiroFile(null)
+      setFluxoFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -288,18 +313,26 @@ export default function DataImportPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in p-6">
-      <div className="flex items-center gap-3 mb-8">
-        <Database className="w-8 h-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard de Importação</h1>
-          <p className="text-muted-foreground mt-1">
-            Carregue arquivos CSV para migrar dados legados para o sistema.
-          </p>
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in p-6">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <Database className="w-8 h-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard de Importação</h1>
+            <p className="text-muted-foreground mt-1">
+              Carregue arquivos CSV para migrar dados legados para o sistema.
+            </p>
+          </div>
         </div>
+        <Button variant="outline" asChild className="hidden md:flex">
+          <Link to="/relatorios/fluxo-pagamentos">
+            <TrendingDown className="w-4 h-4 mr-2" />
+            Relatório de Fluxo de Pagamentos
+          </Link>
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -309,7 +342,7 @@ export default function DataImportPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid w-full max-w-sm items-center gap-1.5">
+              <div className="grid w-full items-center gap-1.5">
                 <Label htmlFor="pessoas">Arquivo CSV</Label>
                 <Input
                   id="pessoas"
@@ -343,7 +376,7 @@ export default function DataImportPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid w-full max-w-sm items-center gap-1.5">
+              <div className="grid w-full items-center gap-1.5">
                 <Label htmlFor="vendas">Arquivo CSV</Label>
                 <Input
                   id="vendas"
@@ -377,7 +410,7 @@ export default function DataImportPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid w-full max-w-sm items-center gap-1.5">
+              <div className="grid w-full items-center gap-1.5">
                 <Label htmlFor="financeiro">Arquivo CSV</Label>
                 <Input
                   id="financeiro"
@@ -394,8 +427,49 @@ export default function DataImportPage() {
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
-                  id_financeiro, tipo, descricao, valor, data_vencimento, data_pagamento, status,
-                  categoria, forma_pagamento, nome_cliente, telefone_cliente
+                  tipo, descricao, valor, data_vencimento, data_pagamento, status, categoria,
+                  nome_cliente, telefone_cliente
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-orange-600" /> 4. Fluxo Pagto
+            </CardTitle>
+            <CardDescription>Upload do arquivo fluxo_pagamentos.csv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="fluxo">Arquivo CSV</Label>
+                <Input
+                  id="fluxo"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setFluxoFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <a
+                href="data:text/csv;charset=utf-8,vencimento,valor,fornecedor,status,observacoes%0A25/12/2026,1500.50,Fornecedor Exemplo,pendente,Observacao Teste"
+                download="template_fluxo_pagamentos.csv"
+                className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+              >
+                <Download className="w-3 h-3" /> Baixar Template
+              </a>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-orange-600 hover:text-orange-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  vencimento (DD/MM/YYYY), valor, fornecedor, status (pendente/pago), observacoes
                 </CollapsibleContent>
               </Collapsible>
             </div>
@@ -403,10 +477,16 @@ export default function DataImportPage() {
         </Card>
       </div>
 
-      <div className="flex justify-end pt-4">
+      <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
+        <Button variant="outline" asChild className="md:hidden">
+          <Link to="/relatorios/fluxo-pagamentos">
+            <TrendingDown className="w-4 h-4 mr-2" />
+            Ver Relatório Fluxo
+          </Link>
+        </Button>
         <Button
           onClick={handleImport}
-          disabled={loading || (!pessoasFile && !vendasFile && !financeiroFile)}
+          disabled={loading || (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile)}
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
           {loading ? (
@@ -431,7 +511,7 @@ export default function DataImportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
                 <div className="text-4xl font-bold text-primary">{results.pacientes}</div>
                 <div className="text-sm font-medium text-muted-foreground mt-2">
@@ -452,8 +532,12 @@ export default function DataImportPage() {
               </div>
               <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
                 <div className="text-4xl font-bold text-primary">{results.despesas}</div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">Contas a Pagar</div>
+              </div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-orange-600">{results.fluxo}</div>
                 <div className="text-sm font-medium text-muted-foreground mt-2">
-                  Contas a Pagar (Despesas)
+                  Fluxo Pagamentos
                 </div>
               </div>
             </div>

@@ -63,6 +63,10 @@ export function parseBrDate(val: string): string {
   if (isoMatch) {
     return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]} 12:00:00.000Z`
   }
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) {
+    return d.toISOString()
+  }
   return val
 }
 

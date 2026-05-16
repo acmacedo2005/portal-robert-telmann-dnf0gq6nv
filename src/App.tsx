@@ -18,6 +18,7 @@ import PacienteDetails from './pages/pacientes/PacienteDetails'
 import Parametrizacao from './pages/parametrizacao/Parametrizacao'
 import ComissoesReport from './pages/relatorios/ComissoesReport'
 import DataImportPage from './pages/importacao/DataImportPage'
+import FluxoPagamentosReport from './pages/relatorios/FluxoPagamentosReport'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/vendas" element={<VendasList />} />
             <Route path="/parametrizacao" element={<Parametrizacao />} />
             <Route path="/relatorios/comissoes" element={<ComissoesReport />} />
+            <Route path="/relatorios/fluxo-pagamentos" element={<FluxoPagamentosReport />} />
             <Route path="/importacao" element={<DataImportPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
