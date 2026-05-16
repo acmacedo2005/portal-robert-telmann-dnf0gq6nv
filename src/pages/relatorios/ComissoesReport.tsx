@@ -170,8 +170,9 @@ export default function ComissoesReport() {
                 <TableHead>Vendedor</TableHead>
                 <TableHead>Venda (Paciente)</TableHead>
                 <TableHead className="text-center">Data</TableHead>
+                <TableHead className="text-right">Valor Venda</TableHead>
                 <TableHead className="text-right">%</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Valor Comissão</TableHead>
                 <TableHead className="text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -189,6 +190,9 @@ export default function ComissoesReport() {
                       <Skeleton className="h-4 w-[80px]" />
                     </TableCell>
                     <TableCell>
+                      <Skeleton className="h-4 w-[80px]" />
+                    </TableCell>
+                    <TableCell>
                       <Skeleton className="h-4 w-[40px]" />
                     </TableCell>
                     <TableCell>
@@ -201,7 +205,7 @@ export default function ComissoesReport() {
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <div className="flex flex-col items-center">
                       <Search className="w-8 h-8 mb-2 opacity-20" />
                       <p>Nenhum registro encontrado para os filtros aplicados.</p>
@@ -220,6 +224,9 @@ export default function ComissoesReport() {
                     </TableCell>
                     <TableCell className="text-center text-sm">
                       {c.data_calculo.slice(0, 10).split('-').reverse().join('/')}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-zinc-600 dark:text-zinc-400">
+                      {formatCurrency(c.expand?.venda_id?.valor_final)}
                     </TableCell>
                     <TableCell className="text-right font-medium text-zinc-500">
                       {c.percentual_comissao}%
@@ -244,7 +251,9 @@ export default function ComissoesReport() {
         {/* Footer Sum */}
         {!loading && filtered.length > 0 && (
           <div className="bg-zinc-50 dark:bg-zinc-950 p-4 border-t flex justify-end items-center gap-4">
-            <span className="text-sm font-bold text-zinc-500 uppercase">Total Filtrado:</span>
+            <span className="text-sm font-bold text-zinc-500 uppercase">
+              Total de Comissões do Período:
+            </span>
             <span className="text-xl font-black text-primary">
               {formatCurrency(totalComissoes)}
             </span>

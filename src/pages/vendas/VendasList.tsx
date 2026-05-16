@@ -243,7 +243,10 @@ export default function VendasList() {
                     <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                       <div className="flex flex-col items-center">
                         <Search className="w-10 h-10 mb-2 opacity-20" />
-                        <p>Nenhuma venda encontrada.</p>
+                        <p className="mb-4">Nenhuma venda encontrada.</p>
+                        <Button onClick={openNewVenda} variant="outline">
+                          <Plus className="w-4 h-4 mr-2" /> Nova Venda
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -308,7 +311,12 @@ export default function VendasList() {
                 <Skeleton key={i} className="h-32 w-full rounded-xl" />
               ))
             ) : filteredVendas.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500">Nenhuma venda encontrada.</div>
+              <div className="text-center py-12 text-zinc-500 flex flex-col items-center">
+                <p className="mb-4">Nenhuma venda encontrada.</p>
+                <Button onClick={openNewVenda} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" /> Nova Venda
+                </Button>
+              </div>
             ) : (
               filteredVendas.map((v) => (
                 <Card key={v.id} className="overflow-hidden">

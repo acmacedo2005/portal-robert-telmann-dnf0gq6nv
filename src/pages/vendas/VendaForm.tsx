@@ -90,6 +90,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
     formaDemais: 'cartao_credito',
     intervalo: 30,
     dataPrimeira: new Date().toISOString().split('T')[0],
+    taxaCartao: 0,
   })
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -185,6 +186,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
         data_vencimento: form.watch('data_venda') + 'T12:00:00.000Z',
         forma_pagamento: gerador.formaEntrada,
         status: 'paga',
+        taxa_percentual: gerador.formaEntrada.includes('cartao') ? gerador.taxaCartao : 0,
       })
     }
 
@@ -200,6 +202,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
           data_vencimento: dataAtual.toISOString(),
           forma_pagamento: gerador.formaDemais,
           status: 'pendente',
+          taxa_percentual: gerador.formaDemais.includes('cartao') ? gerador.taxaCartao : 0,
         })
         dataAtual = addDays(dataAtual, gerador.intervalo)
       }
@@ -247,7 +250,18 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
 
       if (initialData) {
         await pb.collection('vendas').update(initialData.id, payload)
-        toast({ title: 'Venda atualizada com sucesso!' })
+        if (
+          initialData.valor_final !== payload.valor_final ||
+          initialData.entrada_paga !== payload.entrada_paga
+        ) {
+          toast({
+            title: 'Venda atualizada',
+            description:
+              'Valores alterados. Lembre-se de renegociar/recalcular as parcelas se necessário.',
+          })
+        } else {
+          toast({ title: 'Venda atualizada com sucesso!' })
+        }
       } else {
         const venda = await pb.collection('vendas').create(payload)
 
@@ -261,6 +275,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
             forma_pagamento: p.forma_pagamento,
             status: p.status,
             data_pagamento: p.status === 'paga' ? new Date().toISOString() : null,
+            taxa_percentual: p.taxa_percentual || 0,
           })
         }
 
@@ -275,7 +290,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
           data_calculo: new Date().toISOString(),
         })
 
-        toast({ title: 'Venda e parcelas criadas com sucesso!' })
+        toast({ title: 'Venda criada com sucesso!' })
       }
       onSuccess()
     } catch (err: any) {
@@ -622,6 +637,23 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
                             </SelectContent>
                           </Select>
                         </div>
+                        {(gerador.formaEntrada.includes('cartao') ||
+                          gerador.formaDemais.includes('cartao')) && (
+                          <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 text-orange-600">
+                              Taxa Cartão %
+                            </Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={gerador.taxaCartao}
+                              onChange={(e) =>
+                                setGerador({ ...gerador, taxaCartao: Number(e.target.value) })
+                              }
+                              className="h-10 border-orange-200"
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <Button
@@ -742,7 +774,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={patientForm.control}
                   name="telefone"
@@ -757,29 +789,86 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
                 />
                 <FormField
                   control={patientForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={patientForm.control}
                   name="data_nascimento"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nascimento</FormLabel>
+                      <FormLabel>Data de Nascimento</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={patientForm.control}
+                  name="genero"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gênero</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Masculino">Masculino</SelectItem>
+                          <SelectItem value="Feminino">Feminino</SelectItem>
+                          <SelectItem value="Outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={patientForm.control}
+                  name="endereco"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Endereço</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={patientForm.control}
+                  name="cidade"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cidade</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={patientForm.control}
+                  name="estado"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Estado</FormLabel>
+                      <FormControl>
+                        <Input {...field} maxLength={2} placeholder="UF" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </div>
-              <FormField
-                control={patientForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setNewPatientOpen(false)}>
                   Cancelar
