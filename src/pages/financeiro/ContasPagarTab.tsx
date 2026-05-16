@@ -3,6 +3,7 @@ import {
   getContasPagar,
   updateContaPagar,
   createContaPagar,
+  deleteContaPagar,
   type ContaPagar,
 } from '@/services/contas_pagar'
 import { Button } from '@/components/ui/button'
@@ -26,13 +27,33 @@ import {
 } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
-import { Search, Inbox, AlertCircle, Edit2, Plus } from 'lucide-react'
+import {
+  Search,
+  Inbox,
+  AlertCircle,
+  Edit2,
+  Plus,
+  Trash2,
+  DollarSign,
+  AlertOctagon,
+  CalendarClock,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const formatBRL = (val: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -58,6 +79,7 @@ export function ContasPagarTab() {
   const [isCreating, setIsCreating] = useState(false)
   const [selectedConta, setSelectedConta] = useState<ContaPagar | null>(null)
   const [editingConta, setEditingConta] = useState<ContaPagar | null>(null)
+  const [contaToDelete, setContaToDelete] = useState<ContaPagar | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -65,7 +87,7 @@ export function ContasPagarTab() {
     try {
       setContas(await getContasPagar())
     } catch (err) {
-      setError('Falha ao carregar as contas a pagar. Verifique sua conexão.')
+      setError('Erro ao carregar despesas. Verifique sua conexão.')
     } finally {
       setLoading(false)
     }
@@ -75,6 +97,40 @@ export function ContasPagarTab() {
     loadData()
   }, [])
   useRealtime('contas_pagar', loadData)
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const next7Days = new Date()
+  next7Days.setDate(next7Days.getDate() + 7)
+  const next7DaysStr = next7Days.toISOString().slice(0, 10)
+
+  const { totalAPagar, totalVencidas, totalProximos7Dias } = useMemo(() => {
+    return contas.reduce(
+      (acc, conta) => {
+        if (conta.status === 'paga') return acc
+
+        acc.totalAPagar += conta.valor
+
+        const isOverdue =
+          conta.status === 'vencida' ||
+          (conta.data_vencimento && conta.data_vencimento.slice(0, 10) < todayStr)
+        if (isOverdue) {
+          acc.totalVencidas += conta.valor
+        }
+
+        const isNext7Days =
+          !isOverdue &&
+          conta.data_vencimento &&
+          conta.data_vencimento.slice(0, 10) >= todayStr &&
+          conta.data_vencimento.slice(0, 10) <= next7DaysStr
+        if (isNext7Days) {
+          acc.totalProximos7Dias += conta.valor
+        }
+
+        return acc
+      },
+      { totalAPagar: 0, totalVencidas: 0, totalProximos7Dias: 0 },
+    )
+  }, [contas, todayStr, next7DaysStr])
 
   const filtered = useMemo(
     () =>
@@ -116,10 +172,10 @@ export function ContasPagarTab() {
         status: 'pendente',
         data_vencimento: `${fd.get('data_vencimento')} 12:00:00.000Z`,
       })
-      toast.success('Conta criada com sucesso')
+      toast.success('Despesa criada com sucesso')
       setIsCreating(false)
     } catch {
-      toast.error('Erro ao criar conta')
+      toast.error('Erro ao criar despesa')
     }
   }
 
@@ -129,14 +185,16 @@ export function ContasPagarTab() {
     const fd = new FormData(e.currentTarget)
     try {
       await updateContaPagar(editingConta.id, {
+        descricao: fd.get('descricao') as string,
+        fornecedor: fd.get('fornecedor') as string,
         valor: parseFloat(fd.get('valor') as string),
+        categoria: fd.get('categoria') as any,
         data_vencimento: `${fd.get('data_vencimento')} 12:00:00.000Z`,
-        observacoes: fd.get('observacoes') as string,
       })
-      toast.success('Conta atualizada')
+      toast.success('Despesa atualizada com sucesso')
       setEditingConta(null)
     } catch {
-      toast.error('Erro ao atualizar conta')
+      toast.error('Erro ao atualizar despesa')
     }
   }
 
@@ -159,6 +217,17 @@ export function ContasPagarTab() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!contaToDelete) return
+    try {
+      await deleteContaPagar(contaToDelete.id)
+      toast.success('Despesa deletada com sucesso')
+      setContaToDelete(null)
+    } catch {
+      toast.error('Erro ao deletar despesa')
+    }
+  }
+
   if (error)
     return (
       <div className="p-12 text-center text-destructive">
@@ -171,7 +240,46 @@ export function ContasPagarTab() {
     )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h3 className="text-xl font-bold">Contas a Pagar</h3>
+        <Button onClick={() => setIsCreating(true)} className="gap-2 shrink-0">
+          <Plus className="h-4 w-4" /> Nova Despesa
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatBRL(totalAPagar)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Vencidas</CardTitle>
+            <AlertOctagon className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{formatBRL(totalVencidas)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Próximas 7 dias</CardTitle>
+            <CalendarClock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">
+              {formatBRL(totalProximos7Dias)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -236,14 +344,11 @@ export function ContasPagarTab() {
             className="w-full md:w-[130px]"
           />
         </div>
-        <Button onClick={() => setIsCreating(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Nova Conta
-        </Button>
       </div>
 
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
@@ -251,9 +356,9 @@ export function ContasPagarTab() {
         <div className="text-center py-12 border rounded-lg bg-muted/20">
           <Inbox className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-lg font-medium text-muted-foreground mb-4">
-            Nenhuma conta a pagar encontrada
+            Nenhuma despesa encontrada
           </p>
-          <Button onClick={() => setIsCreating(true)}>Nova Conta</Button>
+          <Button onClick={() => setIsCreating(true)}>Nova Despesa</Button>
         </div>
       ) : (
         <>
@@ -267,97 +372,126 @@ export function ContasPagarTab() {
                   <TableHead>Categoria</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Pagamento</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{formatDt(c.data_vencimento)}</TableCell>
-                    <TableCell className="font-medium">{c.descricao}</TableCell>
-                    <TableCell>{c.fornecedor}</TableCell>
-                    <TableCell className="capitalize">{c.categoria}</TableCell>
-                    <TableCell>{formatBRL(c.valor)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={cn(
-                          'capitalize font-medium',
-                          c.status === 'paga'
-                            ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                            : c.status === 'vencida'
-                              ? 'bg-red-100 text-red-800 hover:bg-red-100'
-                              : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
-                        )}
-                        variant="secondary"
-                      >
-                        {c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{c.status === 'paga' ? formatDt(c.data_pagamento) : '-'}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Editar"
-                        onClick={() => setEditingConta(c)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      {c.status !== 'paga' && (
-                        <Button size="sm" onClick={() => setSelectedConta(c)}>
-                          Pagar
+                {filtered.map((c) => {
+                  const isOverdue =
+                    c.status !== 'paga' && c.data_vencimento?.slice(0, 10) < todayStr
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell className={cn(isOverdue && 'text-red-600 font-semibold')}>
+                        {formatDt(c.data_vencimento)}
+                      </TableCell>
+                      <TableCell className="font-medium">{c.descricao}</TableCell>
+                      <TableCell>{c.fornecedor}</TableCell>
+                      <TableCell className="capitalize">{c.categoria.replace('_', ' ')}</TableCell>
+                      <TableCell>{formatBRL(c.valor)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            'capitalize font-medium',
+                            c.status === 'paga'
+                              ? 'bg-green-100 text-green-800 hover:bg-green-100'
+                              : c.status === 'vencida' || isOverdue
+                                ? 'bg-red-100 text-red-800 hover:bg-red-100'
+                                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+                          )}
+                          variant="secondary"
+                        >
+                          {c.status === 'pendente' && isOverdue ? 'vencida' : c.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Editar"
+                          onClick={() => setEditingConta(c)}
+                        >
+                          <Edit2 className="h-4 w-4" />
                         </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          title="Deletar"
+                          onClick={() => setContaToDelete(c)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        {c.status !== 'paga' && (
+                          <Button size="sm" onClick={() => setSelectedConta(c)}>
+                            Pagar
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
 
           <div className="grid gap-4 md:hidden">
-            {filtered.map((c) => (
-              <Card key={c.id}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-medium text-base">{c.descricao}</p>
-                      <p className="text-sm text-muted-foreground">{c.fornecedor}</p>
+            {filtered.map((c) => {
+              const isOverdue = c.status !== 'paga' && c.data_vencimento?.slice(0, 10) < todayStr
+              return (
+                <Card key={c.id}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium text-base">{c.descricao}</p>
+                        <p className="text-sm text-muted-foreground">{c.fornecedor}</p>
+                      </div>
+                      <Badge
+                        className={cn(
+                          'capitalize font-medium',
+                          c.status === 'paga'
+                            ? 'bg-green-100 text-green-800 hover:bg-green-100'
+                            : c.status === 'vencida' || isOverdue
+                              ? 'bg-red-100 text-red-800 hover:bg-red-100'
+                              : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+                        )}
+                        variant="secondary"
+                      >
+                        {c.status === 'pendente' && isOverdue ? 'vencida' : c.status}
+                      </Badge>
                     </div>
-                    <Badge
+                    <div
                       className={cn(
-                        'capitalize font-medium',
-                        c.status === 'paga'
-                          ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                          : c.status === 'vencida'
-                            ? 'bg-red-100 text-red-800 hover:bg-red-100'
-                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+                        'text-sm mb-4',
+                        isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground',
                       )}
-                      variant="secondary"
                     >
-                      {c.status}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-muted-foreground mb-4">
-                    Venc: {formatDt(c.data_vencimento)} | {c.categoria}
-                  </div>
-                  <div className="flex justify-between items-end">
-                    <p className="font-bold text-lg">{formatBRL(c.valor)}</p>
-                    <div className="flex gap-2">
-                      <Button size="icon" variant="outline" onClick={() => setEditingConta(c)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      {c.status !== 'paga' && (
-                        <Button size="sm" onClick={() => setSelectedConta(c)}>
-                          Pagar
-                        </Button>
-                      )}
+                      Venc: {formatDt(c.data_vencimento)} | {c.categoria.replace('_', ' ')}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex justify-between items-end">
+                      <p className="font-bold text-lg">{formatBRL(c.valor)}</p>
+                      <div className="flex gap-2">
+                        <Button size="icon" variant="outline" onClick={() => setEditingConta(c)}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                          onClick={() => setContaToDelete(c)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        {c.status !== 'paga' && (
+                          <Button size="sm" onClick={() => setSelectedConta(c)}>
+                            Pagar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </>
       )}
@@ -366,7 +500,7 @@ export function ContasPagarTab() {
       <Dialog open={isCreating} onOpenChange={setIsCreating}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova Conta a Pagar</DialogTitle>
+            <DialogTitle>Nova Despesa</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
@@ -402,7 +536,7 @@ export function ContasPagarTab() {
               <Input type="date" name="data_vencimento" required />
             </div>
             <Button type="submit" className="w-full">
-              Salvar Conta
+              Salvar Despesa
             </Button>
           </form>
         </DialogContent>
@@ -411,12 +545,36 @@ export function ContasPagarTab() {
       <Dialog open={!!editingConta} onOpenChange={(v) => !v && setEditingConta(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Conta</DialogTitle>
+            <DialogTitle>Editar Despesa</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4">
             <div className="space-y-2">
+              <Label>Descrição *</Label>
+              <Input name="descricao" defaultValue={editingConta?.descricao} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Fornecedor *</Label>
+              <Input name="fornecedor" defaultValue={editingConta?.fornecedor} required />
+            </div>
+            <div className="space-y-2">
               <Label>Valor *</Label>
               <CurrencyInput name="valor" defaultValue={editingConta?.valor} />
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria *</Label>
+              <Select name="categoria" required defaultValue={editingConta?.categoria}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aluguel">Aluguel</SelectItem>
+                  <SelectItem value="fornecedores">Fornecedores</SelectItem>
+                  <SelectItem value="salarios">Salários</SelectItem>
+                  <SelectItem value="utilitarios">Utilitários</SelectItem>
+                  <SelectItem value="taxas_cartao">Taxas de Cartão</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Vencimento *</Label>
@@ -427,16 +585,8 @@ export function ContasPagarTab() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>Observações</Label>
-              <Textarea
-                name="observacoes"
-                defaultValue={editingConta?.observacoes}
-                className="resize-none"
-              />
-            </div>
             <Button type="submit" className="w-full">
-              Atualizar Conta
+              Salvar Despesa
             </Button>
           </form>
         </DialogContent>
@@ -450,7 +600,7 @@ export function ContasPagarTab() {
           <form onSubmit={handlePay} className="space-y-4">
             <div className="p-3 bg-muted rounded-md text-sm mb-4">
               <p>
-                <strong>Conta:</strong> {selectedConta?.descricao}
+                <strong>Despesa:</strong> {selectedConta?.descricao}
               </p>
               <p>
                 <strong>Valor Devido:</strong> {formatBRL(selectedConta?.valor || 0)}
@@ -476,17 +626,21 @@ export function ContasPagarTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="transferencia">Transferência</SelectItem>
-                  <SelectItem value="pix">PIX</SelectItem>
                   <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
                   <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Observações</Label>
-              <Input name="observacoes" defaultValue={selectedConta?.observacoes} />
+              <Textarea
+                name="observacoes"
+                defaultValue={selectedConta?.observacoes}
+                className="resize-none"
+              />
             </div>
             <Button type="submit" className="w-full">
               Confirmar Pagamento
@@ -494,6 +648,26 @@ export function ContasPagarTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!contaToDelete} onOpenChange={(v) => !v && setContaToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar Despesa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover esta despesa? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
