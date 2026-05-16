@@ -35,6 +35,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { Users, Plus, Edit, Trash2, AlertCircle } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function EquipeTab() {
   const [users, setUsers] = useState<any[]>([])
