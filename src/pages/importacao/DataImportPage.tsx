@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useEffect } from 'react'
 import {
   Database,
   Upload,
@@ -25,9 +26,11 @@ import {
   ChevronDown,
   Download,
   TrendingDown,
+  Activity,
 } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
+import useRealtime from '@/hooks/use-realtime'
 import {
   parseCSV,
   parseBrCurrency,
@@ -38,6 +41,83 @@ import {
   getField,
 } from '@/lib/import-utils'
 
+function CirurgiasRealizadasDashboard() {
+  const [metrics, setMetrics] = useState({ total: 0, aReceber: 0, pagos: 0 })
+
+  const loadMetrics = async () => {
+    try {
+      const records = await pb.collection('cirurgias_realizadas').getFullList({ requestKey: null })
+      let total = records.length
+      let aReceber = 0
+      let pagos = 0
+      records.forEach((r) => {
+        aReceber += r.valor_a_receber || 0
+        pagos += r.valor_pago || 0
+      })
+      setMetrics({ total, aReceber, pagos })
+    } catch (e) {
+      // Collection might not exist yet if migration hasn't run, ignore safely
+    }
+  }
+
+  useEffect(() => {
+    loadMetrics()
+  }, [])
+
+  useRealtime('cirurgias_realizadas', () => {
+    loadMetrics()
+  })
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Activity className="w-5 h-5 text-primary" />
+        Relatório de Cirurgias Realizadas
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Cirurgias Importadas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Valores a Receber
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                metrics.aReceber,
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Valores Já Pagos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                metrics.pagos,
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
 export default function DataImportPage() {
   const { toast } = useToast()
   const [pessoasFile, setPessoasFile] = useState<File | null>(null)
@@ -45,6 +125,7 @@ export default function DataImportPage() {
   const [financeiroFile, setFinanceiroFile] = useState<File | null>(null)
   const [fluxoFile, setFluxoFile] = useState<File | null>(null)
   const [acompanhamentoFile, setAcompanhamentoFile] = useState<File | null>(null)
+  const [cirurgiasFile, setCirurgiasFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -53,6 +134,7 @@ export default function DataImportPage() {
     receitas: number
     despesas: number
     fluxo: number
+    cirurgiasRealizadas: number
     acompanhamento: {
       registros: number
       vendedores: Record<string, number>
@@ -72,7 +154,14 @@ export default function DataImportPage() {
   }
 
   const handleImport = async () => {
-    if (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile && !acompanhamentoFile) {
+    if (
+      !pessoasFile &&
+      !vendasFile &&
+      !financeiroFile &&
+      !fluxoFile &&
+      !acompanhamentoFile &&
+      !cirurgiasFile
+    ) {
       toast({
         title: 'Aviso',
         description: 'Selecione pelo menos um arquivo para importar.',
@@ -90,6 +179,7 @@ export default function DataImportPage() {
     let receitasGeradas = 0
     let despesasGeradas = 0
     let fluxoImportados = 0
+    let cirurgiasRealizadasImportadas = 0
     const acompanhamentoRes = {
       registros: 0,
       vendedores: {} as Record<string, number>,
@@ -354,12 +444,85 @@ export default function DataImportPage() {
         }
       }
 
+      // 7. Import Cirurgias Realizadas
+      if (cirurgiasFile) {
+        const text = await readFile(cirurgiasFile)
+        const data = parseCSV(text)
+
+        if (data.length > 0) {
+          const expectedHeaders = [
+            'consultor',
+            'nome do paciente',
+            'data cirurgia',
+            'valor venda',
+            'forma de pagamento',
+            'valor pago',
+            'valor a receber',
+          ]
+          const firstRowKeys = Object.keys(data[0])
+          const missingHeaders = expectedHeaders.filter(
+            (h) => !firstRowKeys.includes(h) && !firstRowKeys.some((k) => k.includes(h)),
+          )
+
+          if (missingHeaders.length > 0) {
+            throw new Error(
+              `O arquivo de Cirurgias Realizadas não contém as colunas esperadas. Faltam: ${missingHeaders.join(', ')}`,
+            )
+          }
+        }
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const nomePaciente = row['nome do paciente'] || row['nome'] || ''
+          const consultor = row['consultor'] || ''
+
+          const nomeLower = nomePaciente.toLowerCase().trim()
+          const consultorLower = consultor.toLowerCase().trim()
+
+          // Data Sanitization
+          if (
+            !nomeLower ||
+            nomeLower === 'vago' ||
+            nomeLower.includes('semana') ||
+            nomeLower.includes('total mensal') ||
+            nomeLower.includes('médicos') ||
+            nomeLower.includes('dr. william') ||
+            consultorLower.includes('semana') ||
+            consultorLower.includes('total mensal')
+          ) {
+            continue
+          }
+
+          const dataCirurgiaStr = row['data cirurgia'] || row['data da cirurgia'] || ''
+          const valorVenda = parseBrCurrency(row['valor venda'])
+          const formaPagamento = row['forma de pagamento'] || row['forma pagamento'] || ''
+          const valorPago = parseBrCurrency(row['valor pago'])
+          const valorAReceber = parseBrCurrency(row['valor a receber'] || row['valor à receber'])
+
+          try {
+            await pb.collection('cirurgias_realizadas').create({
+              consultor,
+              nome_paciente: nomePaciente,
+              data_cirurgia: parseExcelOrBrDate(dataCirurgiaStr) || null,
+              valor_venda: valorVenda,
+              forma_pagamento: formaPagamento,
+              valor_pago: valorPago,
+              valor_a_receber: valorAReceber,
+            })
+            cirurgiasRealizadasImportadas++
+          } catch (err: any) {
+            logs.push(`Linha ${i + 2} (Cirurgias Realizadas): Erro - ${err.message}`)
+          }
+        }
+      }
+
       setResults({
         pacientes: pacientesImportados,
         vendas: vendasImportadas,
         receitas: receitasGeradas,
         despesas: despesasGeradas,
         fluxo: fluxoImportados,
+        cirurgiasRealizadas: cirurgiasRealizadasImportadas,
         acompanhamento: acompanhamentoRes,
         erros: logs,
       })
@@ -378,6 +541,7 @@ export default function DataImportPage() {
       setFinanceiroFile(null)
       setFluxoFile(null)
       setAcompanhamentoFile(null)
+      setCirurgiasFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -405,7 +569,9 @@ export default function DataImportPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-6">
+      <CirurgiasRealizadasDashboard />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -590,6 +756,48 @@ export default function DataImportPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-pink-600" /> 6. Cirurgias
+            </CardTitle>
+            <CardDescription>Upload cirurgias_a_receber.csv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="cirurgias">Arquivo CSV</Label>
+                <Input
+                  id="cirurgias"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCirurgiasFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <a
+                href="data:text/csv;charset=utf-8,Consultor,Nome%20do%20Paciente,Data%20Cirurgia,Valor%20Venda,Forma%20de%20pagamento,Valor%20Pago,Valor%20%C3%A0%20Receber%0AJoao,Maria,01/01/2026,10000,PIX,5000,5000"
+                download="template_cirurgias_realizadas.csv"
+                className="text-xs text-pink-600 hover:underline flex items-center gap-1"
+              >
+                <Download className="w-3 h-3" /> Baixar Template
+              </a>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-pink-600 hover:text-pink-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  Consultor, Nome do Paciente, Data Cirurgia, Valor Venda, Forma de pagamento, Valor
+                  Pago, Valor à Receber
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
@@ -603,7 +811,12 @@ export default function DataImportPage() {
           onClick={handleImport}
           disabled={
             loading ||
-            (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile && !acompanhamentoFile)
+            (!pessoasFile &&
+              !vendasFile &&
+              !financeiroFile &&
+              !fluxoFile &&
+              !acompanhamentoFile &&
+              !cirurgiasFile)
           }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
@@ -629,7 +842,7 @@ export default function DataImportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
               <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
                 <div className="text-4xl font-bold text-primary">{results.pacientes}</div>
                 <div className="text-sm font-medium text-muted-foreground mt-2">
@@ -663,6 +876,12 @@ export default function DataImportPage() {
                   {results.acompanhamento.registros}
                 </div>
                 <div className="text-sm font-medium text-muted-foreground mt-2">Acompanhamento</div>
+              </div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-pink-600">
+                  {results.cirurgiasRealizadas}
+                </div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">Cirurgias</div>
               </div>
             </div>
 
