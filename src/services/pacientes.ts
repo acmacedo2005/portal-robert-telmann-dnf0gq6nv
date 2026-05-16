@@ -2,11 +2,11 @@ import pb from '@/lib/pocketbase/client'
 import type { RecordModel } from 'pocketbase'
 
 export const getPacientes = async (): Promise<RecordModel[]> => {
-  return pb.collection('pacientes').getFullList({ sort: 'nome' })
+  return pb.collection('pacientes').getFullList({ sort: 'nome', requestKey: null })
 }
 
 export const getPaciente = async (id: string): Promise<RecordModel> => {
-  return pb.collection('pacientes').getOne(id, { expand: 'criado_por' })
+  return pb.collection('pacientes').getOne(id, { expand: 'criado_por', requestKey: null })
 }
 
 export const createPaciente = async (data: any): Promise<RecordModel> => {
