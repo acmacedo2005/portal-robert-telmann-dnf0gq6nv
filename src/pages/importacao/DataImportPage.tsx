@@ -19,7 +19,8 @@ export default function DataImportPage() {
           Integração de Banco de Dados Necessária
         </AlertTitle>
         <AlertDescription className="mt-2 text-base leading-relaxed">
-          As linhas dos arquivos CSV fornecidos (<strong>pessoas-d11a9.csv</strong>,{' '}
+          As linhas dos arquivos CSV fornecidos (<strong>produtos.csv</strong>,{' '}
+          <strong>negociacoes.csv</strong>, <strong>pessoas-d11a9.csv</strong>,{' '}
           <strong>propostascomerciais-b63af.csv</strong>, <strong>financeiro-d4d87.csv</strong>)
           devem ser importadas diretamente no seu banco de dados conectado (Skip Cloud / PocketBase)
           para que o aplicativo possa lê-las a partir de lá em tempo de execução.
@@ -42,10 +43,55 @@ export default function DataImportPage() {
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
           <Info className="w-5 h-5 text-blue-500" /> Esquemas de Importação e Mapeamento
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">1. Pacientes</CardTitle>
+              <CardTitle className="text-lg">1. Serviços</CardTitle>
+              <CardDescription>produtos.csv</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-4">
+              <p className="text-muted-foreground">
+                Importe para a coleção <strong>servicos</strong> mapeando as colunas:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
+                <li>nome</li>
+                <li>descricao</li>
+                <li>valor_padrao</li>
+                <li>ativo ("sim" &rarr; true)</li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">2. Observações (Negociações)</CardTitle>
+              <CardDescription>negociacoes.csv</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-4">
+              <p className="text-muted-foreground">
+                Importe para a coleção <strong>observacoes_paciente</strong>:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
+                <li>nome_cliente, telefone_cliente &rarr; paciente_id (lookup)</li>
+                <li>data_negociacao (DD/MM/YYYY) &rarr; data</li>
+                <li>
+                  tipo_contato, historico, observacoes, proxima_acao &rarr; observacao
+                  (concatenados)
+                </li>
+              </ul>
+              <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-200">
+                <Info className="w-4 h-4 shrink-0" />
+                <p>
+                  Busque o <code>paciente_id</code> correspondente ou registre em relatório as
+                  linhas sem paciente.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">3. Pacientes</CardTitle>
               <CardDescription>pessoas-d11a9.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
@@ -53,16 +99,9 @@ export default function DataImportPage() {
                 Importe para a coleção <strong>pacientes</strong> mapeando as colunas:
               </p>
               <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
-                <li>nome</li>
-                <li>telefone</li>
-                <li>email</li>
-                <li>endereco</li>
-                <li>numero</li>
-                <li>complemento</li>
-                <li>bairro</li>
-                <li>cidade</li>
-                <li>estado</li>
-                <li>cep</li>
+                <li>nome, telefone, email</li>
+                <li>endereco, numero, complemento</li>
+                <li>bairro, cidade, estado, cep</li>
                 <li>data_nascimento (YYYY-MM-DD)</li>
                 <li>genero</li>
               </ul>
@@ -78,7 +117,7 @@ export default function DataImportPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">2. Vendas & Propostas</CardTitle>
+              <CardTitle className="text-lg">4. Vendas & Propostas</CardTitle>
               <CardDescription>propostascomerciais-b63af.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
@@ -88,10 +127,8 @@ export default function DataImportPage() {
               <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
                 <li>id_proposta (como referência)</li>
                 <li>data_proposta &rarr; data_venda</li>
-                <li>valor_total</li>
-                <li>entrada_paga</li>
-                <li>status</li>
-                <li>observacoes</li>
+                <li>valor_total, entrada_paga</li>
+                <li>status, observacoes</li>
               </ul>
               <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-200">
                 <Info className="w-4 h-4 shrink-0" />
@@ -106,7 +143,7 @@ export default function DataImportPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">3. Financeiro</CardTitle>
+              <CardTitle className="text-lg">5. Financeiro</CardTitle>
               <CardDescription>financeiro-d4d87.csv</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-4">
@@ -117,12 +154,9 @@ export default function DataImportPage() {
               <ul className="list-disc pl-5 space-y-1 font-mono text-xs bg-muted/50 p-3 rounded-md">
                 <li>tipo (Usar como filtro)</li>
                 <li>nome_cliente (paciente_id / fornecedor)</li>
-                <li>descricao</li>
-                <li>valor</li>
-                <li>data_vencimento</li>
-                <li>data_pagamento</li>
-                <li>status</li>
-                <li>categoria</li>
+                <li>descricao, valor</li>
+                <li>data_vencimento, data_pagamento</li>
+                <li>status, categoria</li>
               </ul>
               <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-200">
                 <Info className="w-4 h-4 shrink-0" />
