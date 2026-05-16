@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T20:35:28.678Z",
+  "generatedAt": "2026-05-16T22:40:59.072Z",
   "collections": [
     {
       "name": "users",
@@ -254,9 +254,42 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "patient_id",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "civil_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rg",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "home_phone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
-      "indexes": ["CREATE UNIQUE INDEX idx_pacientes_cpf ON pacientes (cpf) WHERE cpf != ''"]
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_pacientes_cpf ON pacientes (cpf) WHERE cpf != ''",
+        "CREATE INDEX `idx_pacientes_patient_id` ON `pacientes` (patient_id)"
+      ]
     },
     {
       "name": "cirurgias",

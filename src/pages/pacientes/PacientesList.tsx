@@ -3,6 +3,8 @@ import { api, Paciente, Cirurgia, Fatura } from '@/services/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -29,6 +31,8 @@ export default function PacientesList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
+  const [newPacienteAtivo, setNewPacienteAtivo] = useState(true)
+
   const [detalhesCirurgias, setDetalhesCirurgias] = useState<Cirurgia[]>([])
   const [detalhesFaturas, setDetalhesFaturas] = useState<Fatura[]>([])
 
@@ -54,18 +58,26 @@ export default function PacientesList() {
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const data = {
+    const data: any = {
       nome: formData.get('nome') as string,
+      civil_name: formData.get('civil_name') as string,
       telefone: formData.get('telefone') as string,
+      home_phone: formData.get('home_phone') as string,
       email: formData.get('email') as string,
       data_nascimento: formData.get('data_nascimento')
         ? new Date(formData.get('data_nascimento') as string).toISOString()
         : undefined,
       cpf: formData.get('cpf') as string,
+      rg: formData.get('rg') as string,
       endereco: formData.get('endereco') as string,
       cidade: formData.get('cidade') as string,
       estado: formData.get('estado') as string,
       genero: formData.get('genero') as string,
+      ativo: newPacienteAtivo,
+    }
+
+    if (formData.get('patient_id')) {
+      data.patient_id = parseInt(formData.get('patient_id') as string, 10)
     }
 
     try {
@@ -92,16 +104,19 @@ export default function PacientesList() {
   }
 
   const filtered = pacientes.filter(
-    (p) => p.nome.toLowerCase().includes(search.toLowerCase()) || p.cpf?.includes(search),
+    (p) =>
+      p.nome.toLowerCase().includes(search.toLowerCase()) ||
+      p.cpf?.includes(search) ||
+      (p as any).patient_id?.toString().includes(search),
   )
 
   return (
-    <div className="space-y-4 bg-background p-6 rounded-lg shadow-sm border border-border">
+    <div className="space-y-4 bg-background p-6 rounded-lg shadow-sm border border-border animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div className="relative max-w-sm w-full">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou CPF..."
+            placeholder="Buscar por nome, CPF ou ID..."
             className="pl-8"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -121,14 +136,39 @@ export default function PacientesList() {
               </SheetHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome Completo *</Label>
+                  <Label>Nome Completo / Social *</Label>
                   <Input name="nome" required />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome Civil</Label>
+                  <Input name="civil_name" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>ID Legado (Patient ID)</Label>
+                    <Input name="patient_id" type="number" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Switch checked={newPacienteAtivo} onCheckedChange={setNewPacienteAtivo} />
+                      <span className="text-sm">{newPacienteAtivo ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>CPF</Label>
                     <Input name="cpf" />
                   </div>
+                  <div className="space-y-2">
+                    <Label>RG</Label>
+                    <Input name="rg" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Gênero</Label>
                     <Input name="genero" placeholder="M/F/Outro" />
@@ -140,13 +180,17 @@ export default function PacientesList() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Telefone</Label>
+                    <Label>Telefone Celular</Label>
                     <Input name="telefone" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input type="email" name="email" />
+                    <Label>Telefone Residencial</Label>
+                    <Input name="home_phone" />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" name="email" />
                 </div>
                 <div className="space-y-2">
                   <Label>Endereço</Label>
@@ -176,10 +220,10 @@ export default function PacientesList() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>CPF</TableHead>
-              <TableHead>Gênero</TableHead>
+              <TableHead>CPF / RG</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Cidade</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -193,13 +237,13 @@ export default function PacientesList() {
                     <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
                   </TableCell>
                   <TableCell>
-                    <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
-                  </TableCell>
-                  <TableCell>
                     <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
                   </TableCell>
                   <TableCell>
                     <div className="h-4 w-32 bg-muted animate-pulse rounded"></div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
                   </TableCell>
                 </TableRow>
               ))
@@ -219,14 +263,28 @@ export default function PacientesList() {
               filtered.map((p) => (
                 <TableRow
                   key={p.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => navigate(`/pacientes/${p.id}`)}
                 >
-                  <TableCell className="font-medium">{p.nome}</TableCell>
-                  <TableCell>{p.cpf || '-'}</TableCell>
-                  <TableCell>{(p as any).genero || '-'}</TableCell>
+                  <TableCell className="font-medium">
+                    {p.nome}
+                    {(p as any).patient_id && (
+                      <span className="text-xs text-muted-foreground block">
+                        ID: {(p as any).patient_id}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{p.cpf || '-'}</div>
+                    <div className="text-xs text-muted-foreground">{(p as any).rg || ''}</div>
+                  </TableCell>
                   <TableCell>{p.telefone || '-'}</TableCell>
                   <TableCell>{p.cidade ? `${p.cidade}/${p.estado}` : '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant={(p as any).ativo !== false ? 'default' : 'secondary'}>
+                      {(p as any).ativo !== false ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </TableCell>
                 </TableRow>
               ))
             )}

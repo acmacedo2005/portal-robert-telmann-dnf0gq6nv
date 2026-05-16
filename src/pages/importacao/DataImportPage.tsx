@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useEffect } from 'react'
 import {
   Database,
   Upload,
@@ -27,6 +26,7 @@ import {
   Download,
   TrendingDown,
   Activity,
+  Users,
 } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
@@ -40,6 +40,67 @@ import {
   normPhone,
   getField,
 } from '@/lib/import-utils'
+
+function PacientesMigrationDashboard() {
+  const [metrics, setMetrics] = useState({ total: 0, ativos: 0, cidadesUnicas: 0 })
+
+  const loadMetrics = async () => {
+    try {
+      const records = await pb.collection('pacientes').getFullList({ requestKey: null })
+      const ativos = records.filter((r) => r.ativo !== false).length
+      const cidades = new Set(records.map((r) => r.cidade?.trim().toLowerCase()).filter(Boolean))
+      setMetrics({ total: records.length, ativos, cidadesUnicas: cidades.size })
+    } catch {
+      /* intentionally ignored */
+    }
+  }
+
+  useEffect(() => {
+    loadMetrics()
+  }, [])
+  useRealtime('pacientes', () => loadMetrics())
+
+  return (
+    <div className="mb-8 animate-fade-in">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Users className="w-5 h-5 text-primary" />
+        Dashboard de Pacientes
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Pacientes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pacientes Ativos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{metrics.ativos}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Cidades Atendidas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{metrics.cidadesUnicas}</div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
 
 function CirurgiasRealizadasDashboard() {
   const [metrics, setMetrics] = useState({ total: 0, aReceber: 0, pagos: 0 })
@@ -55,18 +116,15 @@ function CirurgiasRealizadasDashboard() {
         pagos += r.valor_pago || 0
       })
       setMetrics({ total, aReceber, pagos })
-    } catch (e) {
-      // Collection might not exist yet if migration hasn't run, ignore safely
+    } catch {
+      /* intentionally ignored */
     }
   }
 
   useEffect(() => {
     loadMetrics()
   }, [])
-
-  useRealtime('cirurgias_realizadas', () => {
-    loadMetrics()
-  })
+  useRealtime('cirurgias_realizadas', () => loadMetrics())
 
   return (
     <div className="mb-8">
@@ -126,6 +184,7 @@ export default function DataImportPage() {
   const [fluxoFile, setFluxoFile] = useState<File | null>(null)
   const [acompanhamentoFile, setAcompanhamentoFile] = useState<File | null>(null)
   const [cirurgiasFile, setCirurgiasFile] = useState<File | null>(null)
+  const [mestreFile, setMestreFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -160,7 +219,8 @@ export default function DataImportPage() {
       !financeiroFile &&
       !fluxoFile &&
       !acompanhamentoFile &&
-      !cirurgiasFile
+      !cirurgiasFile &&
+      !mestreFile
     ) {
       toast({
         title: 'Aviso',
@@ -188,7 +248,6 @@ export default function DataImportPage() {
     }
 
     try {
-      // 1. Fetch existing patients to build lookup map
       const existingPacientes = await pb.collection('pacientes').getFullList({ requestKey: null })
       const patientMap = new Map<string, string>()
       for (const p of existingPacientes) {
@@ -202,7 +261,6 @@ export default function DataImportPage() {
         const key = `${normName(nomeRaw)}|${normPhone(telRaw)}`
 
         if (patientMap.has(key)) return patientMap.get(key)
-
         if (normName(nomeRaw)) {
           for (const [k, v] of patientMap.entries()) {
             if (k.startsWith(normName(nomeRaw) + '|')) {
@@ -213,7 +271,105 @@ export default function DataImportPage() {
         return null
       }
 
-      // 2. Import Pessoas
+      // Import Planilha Mestre
+      if (mestreFile) {
+        const text = await readFile(mestreFile)
+        const data = parseCSV(text)
+
+        const uniqueData = new Map()
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const pid = row['patient_id'] || row['patient id']
+          if (pid) {
+            uniqueData.set(pid, row)
+          } else {
+            uniqueData.set(`row-${i}`, row)
+          }
+        }
+
+        const dataToProcess = Array.from(uniqueData.values())
+
+        for (let i = 0; i < dataToProcess.length; i++) {
+          const row = dataToProcess[i]
+          const patientIdRaw = row['patient_id'] || row['patient id']
+          const patientId = patientIdRaw ? parseInt(patientIdRaw, 10) : null
+          const nome = row['name'] || row['nome'] || ''
+
+          if (!nome) {
+            logs.push(`Planilha Mestre: Linha ignorada - Nome não fornecido.`)
+            continue
+          }
+
+          const strActive = (row['active'] || row['ativo'] || '').toString().toLowerCase().trim()
+          const ativo =
+            strActive === 't' || strActive === 'true' || strActive === '1' || strActive === 'yes'
+
+          const pacienteData: any = {
+            nome: nome,
+            civil_name: row['civil_name'] || row['civil name'] || '',
+            telefone: normPhone(
+              row['mobile_phone'] || row['mobile phone'] || row['telefone'] || '',
+            ),
+            home_phone: normPhone(row['home_phone'] || row['home phone'] || ''),
+            email: row['email'] || '',
+            genero: row['gender'] || row['genero'] || '',
+            cpf: row['cpf'] || '',
+            rg: row['rg'] || '',
+            endereco: row['address'] || row['endereco'] || '',
+            numero: row['number'] || row['numero'] || '',
+            complemento: row['complement'] || row['complemento'] || '',
+            bairro: row['neighborhood'] || row['bairro'] || '',
+            cidade: row['city'] || row['cidade'] || '',
+            estado: row['state'] || row['estado'] || '',
+            cep: row['zip_code'] || row['zip code'] || row['cep'] || '',
+            ativo: ativo,
+            observacoes_clinicas: row['observation'] || row['observacao'] || '',
+          }
+
+          if (patientId) pacienteData.patient_id = patientId
+          const dataNasc = parseBrDate(row['birthdate'] || row['data_nascimento'])
+          if (dataNasc) pacienteData.data_nascimento = dataNasc
+
+          try {
+            let existingId = null
+            if (patientId) {
+              try {
+                const existing = await pb
+                  .collection('pacientes')
+                  .getFirstListItem(`patient_id=${patientId}`, { requestKey: null })
+                existingId = existing.id
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+
+            if (!existingId && pacienteData.cpf) {
+              try {
+                const existing = await pb
+                  .collection('pacientes')
+                  .getFirstListItem(`cpf="${pacienteData.cpf}"`, { requestKey: null })
+                existingId = existing.id
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+
+            if (existingId) {
+              await pb
+                .collection('pacientes')
+                .update(existingId, pacienteData, { requestKey: null })
+            } else {
+              await pb.collection('pacientes').create(pacienteData, { requestKey: null })
+            }
+            pacientesImportados++
+          } catch (err: any) {
+            logs.push(
+              `Planilha Mestre: Erro ao importar paciente ID ${patientIdRaw || nome} - ${err.message}`,
+            )
+          }
+        }
+      }
+
       if (pessoasFile) {
         const text = await readFile(pessoasFile)
         const data = parseCSV(text)
@@ -230,20 +386,23 @@ export default function DataImportPage() {
           const key = `${normName(nome)}|${normPhone(telefone)}`
           if (!patientMap.has(key)) {
             try {
-              const novo = await pb.collection('pacientes').create({
-                nome: nome,
-                telefone: telefone,
-                email: row.email || '',
-                endereco: row.endereco || row.rua || '',
-                numero: row.numero || '',
-                complemento: row.complemento || '',
-                bairro: row.bairro || '',
-                cidade: row.cidade || '',
-                estado: row.estado || '',
-                cep: row.cep || '',
-                data_nascimento: parseBrDate(row.data_nascimento || row.nascimento) || null,
-                genero: row.genero || '',
-              })
+              const novo = await pb.collection('pacientes').create(
+                {
+                  nome: nome,
+                  telefone: telefone,
+                  email: row.email || '',
+                  endereco: row.endereco || row.rua || '',
+                  numero: row.numero || '',
+                  complemento: row.complemento || '',
+                  bairro: row.bairro || '',
+                  cidade: row.cidade || '',
+                  estado: row.estado || '',
+                  cep: row.cep || '',
+                  data_nascimento: parseBrDate(row.data_nascimento || row.nascimento) || null,
+                  genero: row.genero || '',
+                },
+                { requestKey: null },
+              )
               patientMap.set(key, novo.id)
               pacientesImportados++
             } catch (err: any) {
@@ -255,7 +414,6 @@ export default function DataImportPage() {
         }
       }
 
-      // 3. Import Vendas
       if (vendasFile) {
         const text = await readFile(vendasFile)
         const data = parseCSV(text)
@@ -277,18 +435,21 @@ export default function DataImportPage() {
             const valorTotal = parseBrCurrency(row.valor_total || row.valor)
             const entradaPaga = parseBrCurrency(row.entrada_paga)
 
-            await pb.collection('vendas').create({
-              paciente_id: pid,
-              tipo: 'tratamento',
-              valor_total: valorTotal,
-              valor_final: valorTotal,
-              entrada_paga: entradaPaga,
-              status: status,
-              data_venda:
-                parseBrDate(row.data_proposta || row.data_venda || row.data) ||
-                new Date().toISOString(),
-              observacoes: row.observacoes || row.id_proposta || '',
-            })
+            await pb.collection('vendas').create(
+              {
+                paciente_id: pid,
+                tipo: 'tratamento',
+                valor_total: valorTotal,
+                valor_final: valorTotal,
+                entrada_paga: entradaPaga,
+                status: status,
+                data_venda:
+                  parseBrDate(row.data_proposta || row.data_venda || row.data) ||
+                  new Date().toISOString(),
+                observacoes: row.observacoes || row.id_proposta || '',
+              },
+              { requestKey: null },
+            )
             vendasImportadas++
           } catch (err: any) {
             logs.push(`Linha ${i + 2} (Vendas): Erro ao importar venda - ${err.message}`)
@@ -296,7 +457,6 @@ export default function DataImportPage() {
         }
       }
 
-      // 4. Import Financeiro
       if (financeiroFile) {
         const text = await readFile(financeiroFile)
         const data = parseCSV(text)
@@ -319,14 +479,17 @@ export default function DataImportPage() {
               let status = (row.status || '').toLowerCase()
               if (!['pendente', 'vencida', 'paga', 'parcial'].includes(status)) status = 'pendente'
 
-              await pb.collection('faturas').create({
-                paciente_id: pid,
-                valor: valor,
-                data_vencimento: dtVencimento,
-                data_pagamento: dtPagamento || null,
-                status: status,
-                observacoes: row.descricao || row.observacoes || '',
-              })
+              await pb.collection('faturas').create(
+                {
+                  paciente_id: pid,
+                  valor: valor,
+                  data_vencimento: dtVencimento,
+                  data_pagamento: dtPagamento || null,
+                  status: status,
+                  observacoes: row.descricao || row.observacoes || '',
+                },
+                { requestKey: null },
+              )
               receitasGeradas++
             } catch (err: any) {
               logs.push(`Linha ${i + 2} (Financeiro): Erro ao importar receita - ${err.message}`)
@@ -339,16 +502,19 @@ export default function DataImportPage() {
               let categoria = (row.categoria || '').toLowerCase()
               if (!categoria) categoria = 'outros'
 
-              await pb.collection('contas_pagar').create({
-                descricao: row.descricao || 'Despesa Importada',
-                fornecedor: row.nome_cliente || row.fornecedor || 'Desconhecido',
-                valor: valor,
-                status: status,
-                categoria: categoria,
-                data_vencimento: dtVencimento,
-                data_pagamento: dtPagamento || null,
-                observacoes: row.observacoes || '',
-              })
+              await pb.collection('contas_pagar').create(
+                {
+                  descricao: row.descricao || 'Despesa Importada',
+                  fornecedor: row.nome_cliente || row.fornecedor || 'Desconhecido',
+                  valor: valor,
+                  status: status,
+                  categoria: categoria,
+                  data_vencimento: dtVencimento,
+                  data_pagamento: dtPagamento || null,
+                  observacoes: row.observacoes || '',
+                },
+                { requestKey: null },
+              )
               despesasGeradas++
             } catch (err: any) {
               logs.push(`Linha ${i + 2} (Financeiro): Erro ao importar despesa - ${err.message}`)
@@ -357,7 +523,6 @@ export default function DataImportPage() {
         }
       }
 
-      // 5. Import Fluxo de Pagamentos
       if (fluxoFile) {
         const text = await readFile(fluxoFile)
         const data = parseCSV(text)
@@ -380,14 +545,17 @@ export default function DataImportPage() {
             let status = (row.status || '').toLowerCase()
             if (!['pendente', 'pago', 'vencido', 'cancelado'].includes(status)) status = 'pendente'
 
-            await pb.collection('fluxo_pagamentos').create({
-              vencimento: vencimento,
-              valor: valor,
-              fornecedor: fornecedor,
-              observacoes: row.observacoes || '',
-              status: status,
-              data_pagto: parseBrDate(row.data_pagto || row.data_pagamento) || null,
-            })
+            await pb.collection('fluxo_pagamentos').create(
+              {
+                vencimento: vencimento,
+                valor: valor,
+                fornecedor: fornecedor,
+                observacoes: row.observacoes || '',
+                status: status,
+                data_pagto: parseBrDate(row.data_pagto || row.data_pagamento) || null,
+              },
+              { requestKey: null },
+            )
             fluxoImportados++
           } catch (err: any) {
             logs.push(`Linha ${i + 2} (Fluxo Pagamentos): Erro - ${err.message}`)
@@ -395,7 +563,6 @@ export default function DataImportPage() {
         }
       }
 
-      // 6. Import Acompanhamento
       if (acompanhamentoFile) {
         const text = await readFile(acompanhamentoFile)
         const data = parseCSV(text)
@@ -422,16 +589,19 @@ export default function DataImportPage() {
           const valorPerda = parseBrCurrency(row['valor da perda'])
 
           try {
-            await pb.collection('acompanhamento_vendas').create({
-              mes: mes || new Date().toISOString(),
-              vendedor: vendedor,
-              nome_cliente: nomeCliente,
-              valor: valor,
-              valor_baixado: valorBaixado,
-              valor_a_vencer: valorVencer,
-              valor_vencido: valorVencido,
-              valor_perda: valorPerda,
-            })
+            await pb.collection('acompanhamento_vendas').create(
+              {
+                mes: mes || new Date().toISOString(),
+                vendedor: vendedor,
+                nome_cliente: nomeCliente,
+                valor: valor,
+                valor_baixado: valorBaixado,
+                valor_a_vencer: valorVencer,
+                valor_vencido: valorVencido,
+                valor_perda: valorPerda,
+              },
+              { requestKey: null },
+            )
 
             acompanhamentoRes.registros++
             acompanhamentoRes.aVencer += valorVencer
@@ -444,7 +614,6 @@ export default function DataImportPage() {
         }
       }
 
-      // 7. Import Cirurgias Realizadas
       if (cirurgiasFile) {
         const text = await readFile(cirurgiasFile)
         const data = parseCSV(text)
@@ -479,7 +648,6 @@ export default function DataImportPage() {
           const nomeLower = nomePaciente.toLowerCase().trim()
           const consultorLower = consultor.toLowerCase().trim()
 
-          // Data Sanitization
           if (
             !nomeLower ||
             nomeLower === 'vago' ||
@@ -500,15 +668,18 @@ export default function DataImportPage() {
           const valorAReceber = parseBrCurrency(row['valor a receber'] || row['valor à receber'])
 
           try {
-            await pb.collection('cirurgias_realizadas').create({
-              consultor,
-              nome_paciente: nomePaciente,
-              data_cirurgia: parseExcelOrBrDate(dataCirurgiaStr) || null,
-              valor_venda: valorVenda,
-              forma_pagamento: formaPagamento,
-              valor_pago: valorPago,
-              valor_a_receber: valorAReceber,
-            })
+            await pb.collection('cirurgias_realizadas').create(
+              {
+                consultor,
+                nome_paciente: nomePaciente,
+                data_cirurgia: parseExcelOrBrDate(dataCirurgiaStr) || null,
+                valor_venda: valorVenda,
+                forma_pagamento: formaPagamento,
+                valor_pago: valorPago,
+                valor_a_receber: valorAReceber,
+              },
+              { requestKey: null },
+            )
             cirurgiasRealizadasImportadas++
           } catch (err: any) {
             logs.push(`Linha ${i + 2} (Cirurgias Realizadas): Erro - ${err.message}`)
@@ -542,6 +713,7 @@ export default function DataImportPage() {
       setFluxoFile(null)
       setAcompanhamentoFile(null)
       setCirurgiasFile(null)
+      setMestreFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -569,15 +741,51 @@ export default function DataImportPage() {
         </Button>
       </div>
 
+      <PacientesMigrationDashboard />
       <CirurgiasRealizadasDashboard />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+        <Card className="border-cyan-200 bg-cyan-50/10 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="w-5 h-5 text-cyan-600" /> Planilha Mestre
+            </CardTitle>
+            <CardDescription>Upload planilha_mestre_migracao.csv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="mestre">Arquivo CSV</Label>
+                <Input
+                  id="mestre"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setMestreFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-cyan-600 hover:text-cyan-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  patient_id, name, civil_name, birthdate, gender, cpf, rg, mobile_phone,
+                  home_phone, email, address, number, complement, neighborhood, city, state,
+                  zip_code, active, observation
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-blue-600" /> 1. Pessoas
+              <FileSpreadsheet className="w-5 h-5 text-blue-600" /> Pessoas
             </CardTitle>
-            <CardDescription>Upload do arquivo pessoas.csv</CardDescription>
+            <CardDescription>Upload pessoas.csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -609,9 +817,9 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> 2. Vendas
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Vendas
             </CardTitle>
-            <CardDescription>Upload do arquivo propostas_comerciais.csv</CardDescription>
+            <CardDescription>Upload propostas_comerciais.csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -643,9 +851,9 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-purple-600" /> 3. Financeiro
+              <FileSpreadsheet className="w-5 h-5 text-purple-600" /> Financeiro
             </CardTitle>
-            <CardDescription>Upload do arquivo financeiro.csv</CardDescription>
+            <CardDescription>Upload financeiro.csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -677,9 +885,9 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-orange-600" /> 4. Fluxo Pagto
+              <FileSpreadsheet className="w-5 h-5 text-orange-600" /> Fluxo Pagto
             </CardTitle>
-            <CardDescription>Upload do arquivo fluxo_pagamentos.csv</CardDescription>
+            <CardDescription>Upload fluxo_pagamentos.csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -701,16 +909,6 @@ export default function DataImportPage() {
               >
                 <Download className="w-3 h-3" /> Baixar Template
               </a>
-
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center text-sm text-orange-600 hover:text-orange-800 font-medium">
-                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
-                  <ChevronDown className="w-4 h-4 ml-1" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
-                  vencimento (DD/MM/YYYY), valor, fornecedor, status (pendente/pago), observacoes
-                </CollapsibleContent>
-              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -718,7 +916,7 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-indigo-600" /> 5. Acompanhamento
+              <FileSpreadsheet className="w-5 h-5 text-indigo-600" /> Acompanhamento
             </CardTitle>
             <CardDescription>Upload acompanhamento_vendas.csv</CardDescription>
           </CardHeader>
@@ -734,25 +932,6 @@ export default function DataImportPage() {
                   disabled={loading}
                 />
               </div>
-
-              <a
-                href="data:text/csv;charset=utf-8,M%C3%AAs,Vendedor,Nome%20do%20cliente%20ou%20fornecedor,Valor,Valor%20baixado%20%28bruto%29,Valor%20a%20vencer,Valor%20vencido,Valor%20da%20perda%0A25/12/2026,Joao,Maria,1500,500,1000,0,0"
-                download="template_acompanhamento_vendas.csv"
-                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
-              >
-                <Download className="w-3 h-3" /> Baixar Template
-              </a>
-
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
-                  <ChevronDown className="w-4 h-4 ml-1" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
-                  Mês, Vendedor, Nome do cliente ou fornecedor, Valor, Valor baixado (bruto), Valor
-                  a vencer, Valor vencido, Valor da perda
-                </CollapsibleContent>
-              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -760,7 +939,7 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-pink-600" /> 6. Cirurgias
+              <FileSpreadsheet className="w-5 h-5 text-pink-600" /> Cirurgias
             </CardTitle>
             <CardDescription>Upload cirurgias_a_receber.csv</CardDescription>
           </CardHeader>
@@ -776,25 +955,6 @@ export default function DataImportPage() {
                   disabled={loading}
                 />
               </div>
-
-              <a
-                href="data:text/csv;charset=utf-8,Consultor,Nome%20do%20Paciente,Data%20Cirurgia,Valor%20Venda,Forma%20de%20pagamento,Valor%20Pago,Valor%20%C3%A0%20Receber%0AJoao,Maria,01/01/2026,10000,PIX,5000,5000"
-                download="template_cirurgias_realizadas.csv"
-                className="text-xs text-pink-600 hover:underline flex items-center gap-1"
-              >
-                <Download className="w-3 h-3" /> Baixar Template
-              </a>
-
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center text-sm text-pink-600 hover:text-pink-800 font-medium">
-                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
-                  <ChevronDown className="w-4 h-4 ml-1" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
-                  Consultor, Nome do Paciente, Data Cirurgia, Valor Venda, Forma de pagamento, Valor
-                  Pago, Valor à Receber
-                </CollapsibleContent>
-              </Collapsible>
             </div>
           </CardContent>
         </Card>
@@ -816,7 +976,8 @@ export default function DataImportPage() {
               !financeiroFile &&
               !fluxoFile &&
               !acompanhamentoFile &&
-              !cirurgiasFile)
+              !cirurgiasFile &&
+              !mestreFile)
           }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
@@ -884,73 +1045,6 @@ export default function DataImportPage() {
                 <div className="text-sm font-medium text-muted-foreground mt-2">Cirurgias</div>
               </div>
             </div>
-
-            {results.acompanhamento && results.acompanhamento.registros > 0 && (
-              <div className="mt-6 border-t border-indigo-100 dark:border-indigo-900/30 pt-6">
-                <h4 className="font-semibold text-indigo-700 dark:text-indigo-400 mb-4 text-lg">
-                  Resumo de Acompanhamento (Importado agora)
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
-                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                      Total Importado
-                    </div>
-                    <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100 mt-1">
-                      {results.acompanhamento.registros} reg.
-                    </div>
-                  </div>
-                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
-                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                      Total a Vencer
-                    </div>
-                    <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100 mt-1">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(results.acompanhamento.aVencer)}
-                    </div>
-                  </div>
-                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
-                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                      Total Vencido
-                    </div>
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(results.acompanhamento.vencido)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border rounded-md bg-white dark:bg-black/40 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Vendedor</TableHead>
-                        <TableHead className="text-right">Total Valor de Vendas</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.entries(results.acompanhamento.vendedores)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([vend, total]) => (
-                          <TableRow key={vend}>
-                            <TableCell className="font-medium">{vend}</TableCell>
-                            <TableCell className="text-right">
-                              {new Intl.NumberFormat('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL',
-                              }).format(total)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
 
             {results.erros.length > 0 && (
               <div className="mt-6 border-t border-red-100 dark:border-red-900/30 pt-6">
