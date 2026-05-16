@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T20:25:55.699Z",
+  "generatedAt": "2026-05-16T20:31:15.726Z",
   "collections": [
     {
       "name": "users",
@@ -1713,6 +1713,82 @@
         {
           "name": "data_pagto",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "acompanhamento_vendas",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "mes",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "vendedor",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nome_cliente",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_baixado",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_a_vencer",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_vencido",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_perda",
+          "type": "number",
           "required": false,
           "system": false
         },

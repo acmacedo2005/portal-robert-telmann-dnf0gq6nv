@@ -53,6 +53,16 @@ export function parseBrCurrency(val: string | number): number {
   return isNaN(num) ? 0 : Number(num.toFixed(2))
 }
 
+export function parseExcelOrBrDate(val: string): string {
+  if (!val) return ''
+  if (/^\d{5}$/.test(val)) {
+    const excelEpoch = new Date(1899, 11, 30)
+    const d = new Date(excelEpoch.getTime() + parseInt(val, 10) * 86400000)
+    return d.toISOString()
+  }
+  return parseBrDate(val)
+}
+
 export function parseBrDate(val: string): string {
   if (!val) return ''
   const match = val.match(/(\d{2})[/-](\d{2})[/-](\d{4})/)

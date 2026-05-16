@@ -7,6 +7,14 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
   Database,
   Upload,
   AlertCircle,
@@ -24,6 +32,7 @@ import {
   parseCSV,
   parseBrCurrency,
   parseBrDate,
+  parseExcelOrBrDate,
   normName,
   normPhone,
   getField,
@@ -35,6 +44,7 @@ export default function DataImportPage() {
   const [vendasFile, setVendasFile] = useState<File | null>(null)
   const [financeiroFile, setFinanceiroFile] = useState<File | null>(null)
   const [fluxoFile, setFluxoFile] = useState<File | null>(null)
+  const [acompanhamentoFile, setAcompanhamentoFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -43,6 +53,12 @@ export default function DataImportPage() {
     receitas: number
     despesas: number
     fluxo: number
+    acompanhamento: {
+      registros: number
+      vendedores: Record<string, number>
+      aVencer: number
+      vencido: number
+    }
     erros: string[]
   } | null>(null)
 
@@ -56,7 +72,7 @@ export default function DataImportPage() {
   }
 
   const handleImport = async () => {
-    if (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile) {
+    if (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile && !acompanhamentoFile) {
       toast({
         title: 'Aviso',
         description: 'Selecione pelo menos um arquivo para importar.',
@@ -74,6 +90,12 @@ export default function DataImportPage() {
     let receitasGeradas = 0
     let despesasGeradas = 0
     let fluxoImportados = 0
+    const acompanhamentoRes = {
+      registros: 0,
+      vendedores: {} as Record<string, number>,
+      aVencer: 0,
+      vencido: 0,
+    }
 
     try {
       // 1. Fetch existing patients to build lookup map
@@ -283,12 +305,62 @@ export default function DataImportPage() {
         }
       }
 
+      // 6. Import Acompanhamento
+      if (acompanhamentoFile) {
+        const text = await readFile(acompanhamentoFile)
+        const data = parseCSV(text)
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const mesStr = row['mes'] || row['mês'] || row['data'] || ''
+          const mes = parseExcelOrBrDate(mesStr)
+          const vendedor = row['vendedor'] || ''
+          const nomeCliente =
+            row['nome do cliente ou fornecedor'] || row['nome'] || row['cliente'] || ''
+
+          if (!vendedor || !nomeCliente) {
+            logs.push(
+              `Linha ${i + 2} (Acompanhamento): Ignorada - Vendedor ou Nome do Cliente ausentes.`,
+            )
+            continue
+          }
+
+          const valor = parseBrCurrency(row['valor'])
+          const valorBaixado = parseBrCurrency(row['valor baixado (bruto)'] || row['valor baixado'])
+          const valorVencer = parseBrCurrency(row['valor a vencer'] || row['valor a receber'])
+          const valorVencido = parseBrCurrency(row['valor vencido'])
+          const valorPerda = parseBrCurrency(row['valor da perda'])
+
+          try {
+            await pb.collection('acompanhamento_vendas').create({
+              mes: mes || new Date().toISOString(),
+              vendedor: vendedor,
+              nome_cliente: nomeCliente,
+              valor: valor,
+              valor_baixado: valorBaixado,
+              valor_a_vencer: valorVencer,
+              valor_vencido: valorVencido,
+              valor_perda: valorPerda,
+            })
+
+            acompanhamentoRes.registros++
+            acompanhamentoRes.aVencer += valorVencer
+            acompanhamentoRes.vencido += valorVencido
+            acompanhamentoRes.vendedores[vendedor] =
+              (acompanhamentoRes.vendedores[vendedor] || 0) + valor
+          } catch (err: any) {
+            logs.push(`Linha ${i + 2} (Acompanhamento): Erro - ${err.message}`)
+          }
+        }
+      }
+
       setResults({
         pacientes: pacientesImportados,
         vendas: vendasImportadas,
         receitas: receitasGeradas,
         despesas: despesasGeradas,
         fluxo: fluxoImportados,
+        acompanhamento: acompanhamentoRes,
         erros: logs,
       })
 
@@ -305,6 +377,7 @@ export default function DataImportPage() {
       setVendasFile(null)
       setFinanceiroFile(null)
       setFluxoFile(null)
+      setAcompanhamentoFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -313,7 +386,7 @@ export default function DataImportPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in p-6">
+    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in p-6">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <Database className="w-8 h-8 text-primary" />
@@ -332,7 +405,7 @@ export default function DataImportPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -475,6 +548,48 @@ export default function DataImportPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-indigo-600" /> 5. Acompanhamento
+            </CardTitle>
+            <CardDescription>Upload acompanhamento_vendas.csv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="acompanhamento">Arquivo CSV</Label>
+                <Input
+                  id="acompanhamento"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setAcompanhamentoFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <a
+                href="data:text/csv;charset=utf-8,M%C3%AAs,Vendedor,Nome%20do%20cliente%20ou%20fornecedor,Valor,Valor%20baixado%20%28bruto%29,Valor%20a%20vencer,Valor%20vencido,Valor%20da%20perda%0A25/12/2026,Joao,Maria,1500,500,1000,0,0"
+                download="template_acompanhamento_vendas.csv"
+                className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+              >
+                <Download className="w-3 h-3" /> Baixar Template
+              </a>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  Mês, Vendedor, Nome do cliente ou fornecedor, Valor, Valor baixado (bruto), Valor
+                  a vencer, Valor vencido, Valor da perda
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
@@ -486,7 +601,10 @@ export default function DataImportPage() {
         </Button>
         <Button
           onClick={handleImport}
-          disabled={loading || (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile)}
+          disabled={
+            loading ||
+            (!pessoasFile && !vendasFile && !financeiroFile && !fluxoFile && !acompanhamentoFile)
+          }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
           {loading ? (
@@ -511,7 +629,7 @@ export default function DataImportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
                 <div className="text-4xl font-bold text-primary">{results.pacientes}</div>
                 <div className="text-sm font-medium text-muted-foreground mt-2">
@@ -540,7 +658,80 @@ export default function DataImportPage() {
                   Fluxo Pagamentos
                 </div>
               </div>
+              <div className="bg-white dark:bg-background border rounded-lg p-5 text-center shadow-sm">
+                <div className="text-4xl font-bold text-indigo-600">
+                  {results.acompanhamento.registros}
+                </div>
+                <div className="text-sm font-medium text-muted-foreground mt-2">Acompanhamento</div>
+              </div>
             </div>
+
+            {results.acompanhamento && results.acompanhamento.registros > 0 && (
+              <div className="mt-6 border-t border-indigo-100 dark:border-indigo-900/30 pt-6">
+                <h4 className="font-semibold text-indigo-700 dark:text-indigo-400 mb-4 text-lg">
+                  Resumo de Acompanhamento (Importado agora)
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
+                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                      Total Importado
+                    </div>
+                    <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100 mt-1">
+                      {results.acompanhamento.registros} reg.
+                    </div>
+                  </div>
+                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
+                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                      Total a Vencer
+                    </div>
+                    <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100 mt-1">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(results.acompanhamento.aVencer)}
+                    </div>
+                  </div>
+                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4">
+                    <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                      Total Vencido
+                    </div>
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(results.acompanhamento.vencido)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-md bg-white dark:bg-black/40 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Vendedor</TableHead>
+                        <TableHead className="text-right">Total Valor de Vendas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(results.acompanhamento.vendedores)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([vend, total]) => (
+                          <TableRow key={vend}>
+                            <TableCell className="font-medium">{vend}</TableCell>
+                            <TableCell className="text-right">
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(total)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
 
             {results.erros.length > 0 && (
               <div className="mt-6 border-t border-red-100 dark:border-red-900/30 pt-6">

@@ -101,6 +101,17 @@ export interface Pagamento extends RecordModel {
   observacoes?: string
 }
 
+export interface AcompanhamentoVendas extends RecordModel {
+  mes: string
+  vendedor: string
+  nome_cliente: string
+  valor: number
+  valor_baixado: number
+  valor_a_vencer: number
+  valor_vencido: number
+  valor_perda: number
+}
+
 export const api = {
   pacientes: {
     list: () => pb.collection<Paciente>('pacientes').getFullList({ sort: '-created' }),
@@ -152,5 +163,13 @@ export const api = {
   users: {
     medicos: () => pb.collection('users').getFullList({ filter: "papel = 'medico'" }),
     list: () => pb.collection('users').getFullList(),
+  },
+  acompanhamento_vendas: {
+    list: () =>
+      pb
+        .collection<AcompanhamentoVendas>('acompanhamento_vendas')
+        .getFullList({ sort: '-created' }),
+    create: (data: Partial<AcompanhamentoVendas>) =>
+      pb.collection('acompanhamento_vendas').create(data),
   },
 }
