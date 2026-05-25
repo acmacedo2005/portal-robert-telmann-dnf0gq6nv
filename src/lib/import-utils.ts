@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx'
+
 export function parseCSV(text: string): any[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '')
   if (lines.length < 2) return []
@@ -35,6 +37,27 @@ export function parseCSV(text: string): any[] {
     data.push(obj)
   }
   return data
+}
+
+export async function parseXLSX(file: File): Promise<any[]> {
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[firstSheetName]
+  const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+
+  return json.map((row: any) => {
+    const normalizedRow: any = {}
+    for (const key in row) {
+      const normalizedKey = String(key)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+      normalizedRow[normalizedKey] = row[key]
+    }
+    return normalizedRow
+  })
 }
 
 export function parseBrCurrency(val: string | number): number {

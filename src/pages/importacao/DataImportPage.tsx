@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { parseCSV, parseExcelOrBrDate, parseBrCurrency } from '@/lib/import-utils'
+import { parseCSV, parseXLSX, parseExcelOrBrDate, parseBrCurrency } from '@/lib/import-utils'
 import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -48,7 +48,7 @@ export default function DataImportPage() {
   const mapRow = (row: any) => {
     const normalizedRow: any = {}
     for (const key in row) {
-      const normalizedKey = key
+      const normalizedKey = String(key)
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -129,8 +129,13 @@ export default function DataImportPage() {
       if (file.name.toLowerCase().endsWith('.csv')) {
         const text = await file.text()
         rows = parseCSV(text)
+      } else if (
+        file.name.toLowerCase().endsWith('.xlsx') ||
+        file.name.toLowerCase().endsWith('.xls')
+      ) {
+        rows = await parseXLSX(file)
       } else {
-        throw new Error('Formato de arquivo não suportado. Use apenas .csv')
+        throw new Error('Formato de arquivo não suportado. Use apenas .csv ou .xlsx')
       }
 
       const records = rows.map(mapRow).filter((r) => r.data && r.valor > 0)
@@ -150,6 +155,142 @@ export default function DataImportPage() {
       let batchSuccessCount = 0
       let batchFailCount = 0
 
+      const processRecord = async (rec: any) => {
+        try {
+          const existing = await pb
+            .collection('lancamentos_financeiros')
+            .getFirstListItem(`hash="${rec.hash}"`, { requestKey: null })
+          if (existing) {
+            const err = new Error('Duplicate')
+            ;(err as any).isDuplicate = true
+            throw err
+          }
+        } catch (err: any) {
+          if (err.status !== 404 && !err.isDuplicate) {
+            throw err
+          }
+          if (err.isDuplicate) throw err
+        }
+
+        const lancamento = await pb
+          .collection('lancamentos_financeiros')
+          .create(rec, { requestKey: null })
+
+        try {
+          if (rec.tipo === 'REVENUE' && rec.status === 'QUITADO') {
+            const searchStr = (rec.descricao || rec.nome_negociador || '').trim()
+            if (searchStr) {
+              const safeSearch = searchStr.replace(/["'\\]/g, '')
+              let vendaId = null
+
+              if (safeSearch.length > 3) {
+                const vendasResp = await pb
+                  .collection('vendas')
+                  .getList(1, 1, {
+                    filter: `observacoes ~ "${safeSearch}"`,
+                    requestKey: null,
+                  })
+                  .catch(() => null)
+                vendaId = vendasResp?.items[0]?.id
+
+                if (!vendaId) {
+                  const pacientesResp = await pb
+                    .collection('pacientes')
+                    .getList(1, 1, {
+                      filter: `nome ~ "${safeSearch}"`,
+                      requestKey: null,
+                    })
+                    .catch(() => null)
+
+                  if (pacientesResp && pacientesResp.items.length > 0) {
+                    const pacId = pacientesResp.items[0].id
+                    const vResp = await pb
+                      .collection('vendas')
+                      .getList(1, 1, {
+                        filter: `paciente_id = "${pacId}"`,
+                        sort: '-created',
+                        requestKey: null,
+                      })
+                      .catch(() => null)
+                    vendaId = vResp?.items[0]?.id
+                  }
+                }
+              }
+
+              if (vendaId) {
+                const crResp = await pb
+                  .collection('contas_receber')
+                  .getList(1, 1, {
+                    filter: `venda_id = "${vendaId}"`,
+                    requestKey: null,
+                  })
+                  .catch(() => null)
+
+                if (crResp && crResp.items.length > 0) {
+                  const cr = crResp.items[0]
+                  const valorRecebido = (cr.valor_recebido || 0) + rec.valor
+                  const valorPendente = Math.max(0, (cr.valor_total || 0) - valorRecebido)
+                  const statusCr = valorPendente <= 0 ? 'Pago' : 'Parcial'
+
+                  await pb.collection('contas_receber').update(
+                    cr.id,
+                    {
+                      valor_recebido: valorRecebido,
+                      valor_pendente: valorPendente,
+                      status: statusCr,
+                    },
+                    { requestKey: null },
+                  )
+
+                  await pb.collection('recebimentos').create(
+                    {
+                      contas_receber_id: cr.id,
+                      lancamento_id: lancamento.id,
+                      data_recebimento: rec.data_quitacao || rec.data,
+                      valor_recebido: rec.valor,
+                      metodo_pagamento: rec.metodo_pagamento || 'Outros',
+                      observacoes: rec.descricao || 'Recebimento importado',
+                    },
+                    { requestKey: null },
+                  )
+                }
+              }
+            }
+          } else if (rec.tipo === 'EXPENSE') {
+            const statusCp = rec.status === 'QUITADO' || rec.data_quitacao ? 'paga' : 'pendente'
+
+            let validMetodo = 'transferencia'
+            const met = (rec.metodo_pagamento || '').toLowerCase()
+            if (met.includes('cartao') && met.includes('deb')) validMetodo = 'cartao_debito'
+            else if (met.includes('cartao') && met.includes('cred')) validMetodo = 'cartao_credito'
+            else if (met.includes('cartao')) validMetodo = 'cartao'
+            else if (met.includes('dinheiro')) validMetodo = 'dinheiro'
+            else if (met.includes('pix')) validMetodo = 'pix'
+            else if (met.includes('transf')) validMetodo = 'transferencia'
+
+            await pb.collection('contas_pagar').create(
+              {
+                descricao: rec.descricao || 'Despesa importada',
+                fornecedor: rec.nome_negociador || 'Não informado',
+                valor: rec.valor,
+                status: statusCp,
+                categoria: 'outros',
+                data_vencimento: rec.data_vencimento || rec.data || new Date().toISOString(),
+                data_pagamento: rec.data_quitacao || null,
+                valor_pago: rec.status === 'QUITADO' || rec.data_quitacao ? rec.valor : 0,
+                metodo_pagamento: validMetodo,
+                lancamento_id: lancamento.id,
+              },
+              { requestKey: null },
+            )
+          }
+        } catch (err) {
+          console.error('Conciliation error:', err)
+        }
+
+        return lancamento
+      }
+
       for (let i = 0; i < records.length; i += 50) {
         let batch = records.slice(i, i + 50)
         let batchCompleted = false
@@ -159,11 +300,7 @@ export default function DataImportPage() {
           let has429 = false
           let retryBatch: typeof records = []
 
-          const results = await Promise.allSettled(
-            batch.map((rec) =>
-              pb.collection('lancamentos_financeiros').create(rec, { requestKey: null }),
-            ),
-          )
+          const results = await Promise.allSettled(batch.map(processRecord))
 
           for (let j = 0; j < results.length; j++) {
             const res = results[j]
@@ -172,13 +309,15 @@ export default function DataImportPage() {
               if (batch[j].tipo === 'REVENUE') sumRevenue += batch[j].valor
               if (batch[j].tipo === 'EXPENSE') sumExpense += batch[j].valor
             } else {
-              if (res.reason?.status === 429) {
+              const err = res.reason
+              if (err?.status === 429) {
                 has429 = true
                 retryBatch.push(batch[j])
-              } else if (res.reason?.status === 400) {
+              } else if (err?.isDuplicate || err?.status === 400) {
                 duplicates++
               } else {
                 errors++
+                console.error('Import error', err)
               }
             }
           }
@@ -248,7 +387,10 @@ export default function DataImportPage() {
       })
 
       if (errors > 0) {
-        toast({ title: 'Importação finalizada com alguns erros.', variant: 'destructive' })
+        toast({
+          title: 'Importação parcial — tente novamente os lotes com erro',
+          variant: 'destructive',
+        })
       } else {
         toast({ title: 'Importação financeira concluída com sucesso!' })
       }
@@ -275,7 +417,8 @@ export default function DataImportPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Importação Financeira</h1>
           <p className="text-muted-foreground mt-1">
-            Importe registros em lote e reconcilie automaticamente com vendas e contas a pagar.
+            Importe registros em lote (.csv ou .xlsx) e reconcilie automaticamente com vendas e
+            contas a pagar.
           </p>
         </div>
       </div>
@@ -284,7 +427,7 @@ export default function DataImportPage() {
         <CardHeader>
           <CardTitle>Iniciar Importação</CardTitle>
           <CardDescription>
-            Faça upload da planilha exportada pelo seu sistema financeiro (formato .csv).
+            Faça upload da planilha exportada pelo seu sistema financeiro (formato .csv ou .xlsx).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -300,7 +443,7 @@ export default function DataImportPage() {
             </Button>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv, .xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileChange}
