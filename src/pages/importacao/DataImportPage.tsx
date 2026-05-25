@@ -126,26 +126,11 @@ export default function DataImportPage() {
     try {
       let rows: any[] = []
 
-      if (file.name.toLowerCase().endsWith('.xlsx')) {
-        const reader = new FileReader()
-        const base64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = (e) => {
-            const result = e.target?.result as string
-            resolve(result.split(',')[1])
-          }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        })
-
-        rows = await pb.send('/backend/v1/parse-xlsx', {
-          method: 'POST',
-          body: JSON.stringify({ file: base64 }),
-        })
-      } else if (file.name.toLowerCase().endsWith('.csv')) {
+      if (file.name.toLowerCase().endsWith('.csv')) {
         const text = await file.text()
         rows = parseCSV(text)
       } else {
-        throw new Error('Formato de arquivo não suportado. Use .xlsx ou .csv')
+        throw new Error('Formato de arquivo não suportado. Use apenas .csv')
       }
 
       const records = rows.map(mapRow).filter((r) => r.data && r.valor > 0)
@@ -299,7 +284,7 @@ export default function DataImportPage() {
         <CardHeader>
           <CardTitle>Iniciar Importação</CardTitle>
           <CardDescription>
-            Faça upload da planilha exportada pelo seu sistema financeiro (formatos .xlsx ou .csv).
+            Faça upload da planilha exportada pelo seu sistema financeiro (formato .csv).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -315,7 +300,7 @@ export default function DataImportPage() {
             </Button>
             <input
               type="file"
-              accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+              accept=".csv"
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileChange}
