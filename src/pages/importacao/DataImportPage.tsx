@@ -187,6 +187,7 @@ export default function DataImportPage() {
   const [cirurgiasFile, setCirurgiasFile] = useState<File | null>(null)
   const [mestreFile, setMestreFile] = useState<File | null>(null)
   const [mestreAgendamentosFile, setMestreAgendamentosFile] = useState<File | null>(null)
+  const [cadastroFile, setCadastroFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -207,6 +208,14 @@ export default function DataImportPage() {
       concluido: number
       agendado: number
       medicosUnicos: number
+    }
+    cadastro: {
+      total: number
+      f: number
+      j: number
+      cidades: number
+      incompletos: number
+      successMsg: string
     }
     erros: string[]
   } | null>(null)
@@ -229,7 +238,8 @@ export default function DataImportPage() {
       !acompanhamentoFile &&
       !cirurgiasFile &&
       !mestreFile &&
-      !mestreAgendamentosFile
+      !mestreAgendamentosFile &&
+      !cadastroFile
     ) {
       toast({
         title: 'Aviso',
@@ -260,6 +270,14 @@ export default function DataImportPage() {
       concluido: 0,
       agendado: 0,
       medicosUnicos: 0,
+    }
+    const cadastroResData = {
+      total: 0,
+      f: 0,
+      j: 0,
+      cidades: 0,
+      incompletos: 0,
+      successMsg: '',
     }
 
     try {
@@ -296,6 +314,98 @@ export default function DataImportPage() {
       }
 
       // Import Planilha Mestre
+      if (cadastroFile) {
+        const text = await readFile(cadastroFile)
+        const data = parseCSV(text)
+        const cities = new Set<string>()
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          const nome = row.nome || row.cliente || ''
+          const emailRaw = row.email || ''
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          const email = emailRegex.test(emailRaw) ? emailRaw : ''
+
+          const fone_comercial = normPhone(row.fone_comercial || row.telefone_comercial || '')
+          const fone_celular = normPhone(
+            row.fone_celular || row.telefone_celular || row.celular || row.telefone || '',
+          )
+
+          let cpf_cnpj = normPhone(row.cpf_cnpj || row.cpf || row.cnpj || '')
+
+          const tipo_pessoa = (row.tipo_pessoa || row.fisica_juridica || 'F')
+            .toUpperCase()
+            .startsWith('J')
+            ? 'J'
+            : 'F'
+          if (tipo_pessoa === 'J') cadastroResData.j++
+          else cadastroResData.f++
+
+          const cidade = row.cidade || ''
+          if (cidade) cities.add(cidade.toLowerCase().trim())
+
+          let isIncomplete = false
+          if (!nome) isIncomplete = true
+          if (!fone_celular && !email) isIncomplete = true
+
+          if (isIncomplete) {
+            cadastroResData.incompletos++
+            logs.push(
+              `Linha ${i + 2} (Cadastro Master): Registro incompleto (Nome: ${nome || 'vazio'})`,
+            )
+          }
+
+          try {
+            let existingId = null
+            if (cpf_cnpj) {
+              try {
+                const ex = await pb
+                  .collection('pacientes')
+                  .getFirstListItem(`cpf_cnpj="${cpf_cnpj}"`, { requestKey: null })
+                existingId = ex.id
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+
+            const dtRaw = row.dt_aniversario || row.aniversario || row.data_nascimento
+
+            const payload = {
+              nome: nome || 'Sem Nome',
+              email,
+              fone_celular,
+              fone_comercial,
+              telefone: fone_celular || fone_comercial,
+              cpf_cnpj,
+              tipo_pessoa,
+              tipo: row.tipo || 'Cliente',
+              inscricao_estadual: row.inscricao_estadual || '',
+              dt_aniversario: parseExcelOrBrDate(dtRaw) || null,
+              endereco: row.endereco || row.rua || '',
+              numero: row.numero || '',
+              complemento: row.complemento || '',
+              bairro: row.bairro || '',
+              cep: row.cep || '',
+              cidade,
+              estado: row.estado || row.uf || '',
+              ativo: true,
+            }
+
+            if (existingId) {
+              await pb.collection('pacientes').update(existingId, payload, { requestKey: null })
+            } else {
+              await pb.collection('pacientes').create(payload, { requestKey: null })
+              pacientesImportados++
+            }
+            cadastroResData.total++
+          } catch (err: any) {
+            logs.push(`Linha ${i + 2} (Cadastro Master): Erro - ${err.message}`)
+          }
+        }
+        cadastroResData.cidades = cities.size
+        cadastroResData.successMsg = 'Banco limpo e pronto para receber novas informações'
+      }
+
       if (mestreFile) {
         const text = await readFile(mestreFile)
         const data = parseCSV(text)
@@ -790,6 +900,7 @@ export default function DataImportPage() {
         cirurgiasRealizadas: cirurgiasRealizadasImportadas,
         acompanhamento: acompanhamentoRes,
         mestreAgendamentos: mestreAgendamentosRes,
+        cadastro: cadastroResData,
         erros: logs,
       })
 
@@ -810,6 +921,7 @@ export default function DataImportPage() {
       setCirurgiasFile(null)
       setMestreFile(null)
       setMestreAgendamentosFile(null)
+      setCadastroFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -841,6 +953,40 @@ export default function DataImportPage() {
       <CirurgiasRealizadasDashboard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+        <Card className="border-rose-200 bg-rose-50/10 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="w-5 h-5 text-rose-600" /> Cadastro Master
+            </CardTitle>
+            <CardDescription>Upload cadastro_vinci240526.csv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="cadastro">Arquivo CSV</Label>
+                <Input
+                  id="cadastro"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCadastroFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-rose-600 hover:text-rose-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Colunas Esperadas{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  tipo, tipo_pessoa, nome, cpf_cnpj, inscricao_estadual, dt_aniversario, endereco,
+                  numero, complemento, bairro, cep, cidade, fone_comercial, fone_celular, email
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-cyan-200 bg-cyan-50/10 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -1108,7 +1254,8 @@ export default function DataImportPage() {
               !acompanhamentoFile &&
               !cirurgiasFile &&
               !mestreFile &&
-              !mestreAgendamentosFile)
+              !mestreAgendamentosFile &&
+              !cadastroFile)
           }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
@@ -1176,6 +1323,45 @@ export default function DataImportPage() {
                 <div className="text-sm font-medium text-muted-foreground mt-2">Cirurgias</div>
               </div>
             </div>
+
+            {results.cadastro.total > 0 && (
+              <div className="mt-6 border border-rose-100 dark:border-rose-900/30 rounded-lg p-5 bg-rose-50/50 dark:bg-rose-900/10">
+                <h4 className="font-semibold text-rose-700 dark:text-rose-400 mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5" /> Resumo do Cadastro Master
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-rose-600">{results.cadastro.total}</div>
+                    <div className="text-sm text-muted-foreground">Total Importados</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-rose-600">{results.cadastro.f}</div>
+                    <div className="text-sm text-muted-foreground">Pessoas Físicas (F)</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-rose-600">{results.cadastro.j}</div>
+                    <div className="text-sm text-muted-foreground">Pessoas Jurídicas (J)</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-rose-600">
+                      {results.cadastro.cidades}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Cidades Únicas</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-amber-600">
+                      {results.cadastro.incompletos}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Registros Incompletos</div>
+                  </div>
+                </div>
+                {results.cadastro.successMsg && (
+                  <div className="mt-4 text-sm font-medium text-green-700 bg-green-100 p-3 rounded flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> {results.cadastro.successMsg}
+                  </div>
+                )}
+              </div>
+            )}
 
             {results.mestreAgendamentos.total > 0 && (
               <div className="mt-6 border border-teal-100 dark:border-teal-900/30 rounded-lg p-5 bg-teal-50/50 dark:bg-teal-900/10">

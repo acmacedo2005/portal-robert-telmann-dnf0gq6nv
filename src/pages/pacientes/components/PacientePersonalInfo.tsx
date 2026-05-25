@@ -7,6 +7,13 @@ import { updatePaciente } from '@/services/pacientes'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export default function PacientePersonalInfo({
   paciente,
@@ -18,6 +25,7 @@ export default function PacientePersonalInfo({
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [ativo, setAtivo] = useState<boolean>(paciente.ativo !== false)
+  const [tipoPessoa, setTipoPessoa] = useState(paciente.tipo_pessoa || 'F')
   const { user } = useAuth()
 
   const canEdit =
@@ -36,8 +44,12 @@ export default function PacientePersonalInfo({
     if (data.data_nascimento) {
       data.data_nascimento = new Date(data.data_nascimento as string).toISOString()
     }
+    if (data.dt_aniversario) {
+      data.dt_aniversario = new Date(data.dt_aniversario as string).toISOString()
+    }
 
     data.ativo = ativo
+    data.tipo_pessoa = tipoPessoa
 
     setLoading(true)
     setErrors({})
@@ -71,6 +83,75 @@ export default function PacientePersonalInfo({
         </div>
 
         <div className="space-y-2">
+          <Label>CPF/CNPJ *</Label>
+          <Input
+            name="cpf_cnpj"
+            defaultValue={paciente.cpf_cnpj || paciente.cpf}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Inscrição Estadual</Label>
+          <Input
+            name="inscricao_estadual"
+            defaultValue={paciente.inscricao_estadual}
+            disabled={!canEdit}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tipo</Label>
+          <Input
+            name="tipo"
+            defaultValue={paciente.tipo}
+            disabled={!canEdit}
+            placeholder="Ex: Cliente"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Tipo Pessoa</Label>
+          <Select value={tipoPessoa} onValueChange={setTipoPessoa} disabled={!canEdit}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="F">Física (F)</SelectItem>
+              <SelectItem value="J">Jurídica (J)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Data de Aniversário</Label>
+          <Input
+            name="dt_aniversario"
+            type="date"
+            defaultValue={
+              paciente.dt_aniversario?.split('T')[0] || paciente.data_nascimento?.split('T')[0]
+            }
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input name="email" type="email" defaultValue={paciente.email} disabled={!canEdit} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Fone Celular *</Label>
+          <Input
+            name="fone_celular"
+            defaultValue={paciente.fone_celular || paciente.telefone}
+            required
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Fone Comercial</Label>
+          <Input name="fone_comercial" defaultValue={paciente.fone_comercial} disabled={!canEdit} />
+        </div>
+
+        <div className="space-y-2">
           <Label>ID Legado (Patient ID)</Label>
           <Input
             name="patient_id"
@@ -88,45 +169,16 @@ export default function PacientePersonalInfo({
         </div>
 
         <div className="space-y-2">
-          <Label>CPF *</Label>
-          <Input name="cpf" defaultValue={paciente.cpf} disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
-          <Label>RG</Label>
-          <Input name="rg" defaultValue={paciente.rg} disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
-          <Label>Email</Label>
-          <Input name="email" type="email" defaultValue={paciente.email} disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
-          <Label>Data Nascimento *</Label>
-          <Input
-            name="data_nascimento"
-            type="date"
-            defaultValue={paciente.data_nascimento?.split('T')[0]}
-            disabled={!canEdit}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Telefone Celular *</Label>
-          <Input name="telefone" defaultValue={paciente.telefone} required disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
-          <Label>Telefone Residencial</Label>
-          <Input name="home_phone" defaultValue={paciente.home_phone} disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
-          <Label>WhatsApp</Label>
-          <Input name="whatsapp" defaultValue={paciente.whatsapp} disabled={!canEdit} />
-        </div>
-        <div className="space-y-2">
           <Label>CEP</Label>
           <Input name="cep" defaultValue={paciente.cep} disabled={!canEdit} />
         </div>
         <div className="space-y-2">
-          <Label>Rua</Label>
-          <Input name="rua" defaultValue={paciente.rua} disabled={!canEdit} />
+          <Label>Endereço</Label>
+          <Input
+            name="endereco"
+            defaultValue={paciente.endereco || paciente.rua}
+            disabled={!canEdit}
+          />
         </div>
         <div className="space-y-2">
           <Label>Número</Label>
@@ -137,12 +189,12 @@ export default function PacientePersonalInfo({
           <Input name="complemento" defaultValue={paciente.complemento} disabled={!canEdit} />
         </div>
         <div className="space-y-2">
-          <Label>Cidade</Label>
-          <Input name="cidade" defaultValue={paciente.cidade} disabled={!canEdit} />
+          <Label>Bairro</Label>
+          <Input name="bairro" defaultValue={paciente.bairro} disabled={!canEdit} />
         </div>
         <div className="space-y-2">
-          <Label>Estado</Label>
-          <Input name="estado" defaultValue={paciente.estado} maxLength={2} disabled={!canEdit} />
+          <Label>Cidade</Label>
+          <Input name="cidade" defaultValue={paciente.cidade} disabled={!canEdit} />
         </div>
       </div>
       {canEdit && (

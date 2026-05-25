@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T23:15:20.899Z",
+  "generatedAt": "2026-05-25T00:23:45.720Z",
   "collections": [
     {
       "name": "users",
@@ -133,7 +133,7 @@
           "system": false
         },
         {
-          "name": "cpf",
+          "name": "cpf_cnpj",
           "type": "text",
           "required": false,
           "system": false
@@ -284,11 +284,48 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_pessoa",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["F", "J"]
+        },
+        {
+          "name": "inscricao_estadual",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dt_aniversario",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fone_comercial",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fone_celular",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX idx_pacientes_cpf ON pacientes (cpf) WHERE cpf != ''",
-        "CREATE INDEX `idx_pacientes_patient_id` ON `pacientes` (patient_id)"
+        "CREATE INDEX `idx_pacientes_patient_id` ON `pacientes` (patient_id)",
+        "CREATE UNIQUE INDEX `idx_pacientes_cpf_cnpj` ON `pacientes` (cpf_cnpj) WHERE cpf_cnpj != ''"
       ]
     },
     {

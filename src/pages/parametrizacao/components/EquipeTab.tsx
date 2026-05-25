@@ -301,6 +301,7 @@ export default function EquipeTab() {
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="vendedor">Vendedor</SelectItem>
                   <SelectItem value="administrativo">Administrativo</SelectItem>
                   <SelectItem value="financeiro">Financeiro</SelectItem>
