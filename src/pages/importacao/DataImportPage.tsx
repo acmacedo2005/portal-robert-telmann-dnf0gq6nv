@@ -12,7 +12,15 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
-import { Upload, FileSpreadsheet, CheckCircle2, BarChart3, Database } from 'lucide-react'
+import {
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  BarChart3,
+  Database,
+  AlertTriangle,
+  Info,
+} from 'lucide-react'
 
 export default function DataImportPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -46,6 +54,7 @@ export default function DataImportPage() {
       'nome do clientefornecedor',
       'nome',
     ])
+    // The requirement implies strictly 2 decimals
     const valor = parseBrCurrency(getVal(row, ['valor', 'value']))
     const tipoStr = String(getVal(row, ['tipo', 'type'])).toUpperCase()
     let tipo = 'EXPENSE'
@@ -102,39 +111,69 @@ export default function DataImportPage() {
       let errors = 0
       let sumRevenue = 0
       let sumExpense = 0
+      let batchSuccessCount = 0
+      let batchFailCount = 0
 
       for (let i = 0; i < records.length; i += 50) {
-        const batch = records.slice(i, i + 50)
+        let batch = records.slice(i, i + 50)
+        let batchCompleted = false
+        let attempts = 0
 
-        await Promise.all(
-          batch.map(async (rec) => {
-            let attempts = 0
-            while (attempts < 3) {
-              try {
-                await pb.collection('lancamentos_financeiros').create(rec, { requestKey: null })
-                success++
-                if (rec.tipo === 'REVENUE') sumRevenue += rec.valor
-                if (rec.tipo === 'EXPENSE') sumExpense += rec.valor
-                break
-              } catch (e: any) {
-                if (e.status === 429) {
-                  attempts++
-                  await new Promise((r) => setTimeout(r, 5000))
-                } else if (e.status === 400) {
-                  duplicates++
-                  break
-                } else {
-                  errors++
-                  break
-                }
+        while (!batchCompleted && attempts < 3) {
+          let has429 = false
+          let retryBatch: typeof records = []
+
+          const results = await Promise.allSettled(
+            batch.map((rec) =>
+              pb.collection('lancamentos_financeiros').create(rec, { requestKey: null }),
+            ),
+          )
+
+          for (let j = 0; j < results.length; j++) {
+            const res = results[j]
+            if (res.status === 'fulfilled') {
+              success++
+              if (batch[j].tipo === 'REVENUE') sumRevenue += batch[j].valor
+              if (batch[j].tipo === 'EXPENSE') sumExpense += batch[j].valor
+            } else {
+              if (res.reason?.status === 429) {
+                has429 = true
+                retryBatch.push(batch[j])
+              } else if (res.reason?.status === 400) {
+                duplicates++
+              } else {
+                errors++
               }
             }
-          }),
-        )
+          }
 
-        processed += batch.length
+          if (has429) {
+            attempts++
+            // Delay Control: 429 Error => 5 seconds delay and retry that specific batch
+            await new Promise((r) => setTimeout(r, 5000))
+            batch = retryBatch
+          } else {
+            batchCompleted = true
+            if (retryBatch.length === 0 && errors === 0) {
+              batchSuccessCount++
+            } else {
+              batchFailCount++
+            }
+          }
+        }
+
+        if (attempts >= 3) {
+          errors += batch.length
+          batchFailCount++
+        }
+
+        processed += Math.min(50, records.length - i)
         setProgress(Math.round((processed / records.length) * 100))
-        await new Promise((r) => setTimeout(r, 2000))
+
+        // Delay Control: 2 seconds wait between standard batches
+        if (i + 50 < records.length) {
+          await new Promise((r) => setTimeout(r, 2000))
+        }
       }
 
       const updatedReceber = await pb
@@ -161,6 +200,8 @@ export default function DataImportPage() {
         errors,
         sumRevenue,
         sumExpense,
+        batchSuccessCount,
+        batchFailCount,
         updatedReceber: updatedReceber.totalItems,
         createdPagar: createdPagar.totalItems,
         salesStatus: {
@@ -170,7 +211,11 @@ export default function DataImportPage() {
         },
       })
 
-      toast({ title: 'Importação financeira concluída com sucesso!' })
+      if (errors > 0) {
+        toast({ title: 'Importação finalizada com alguns erros.', variant: 'destructive' })
+      } else {
+        toast({ title: 'Importação financeira concluída com sucesso!' })
+      }
     } catch (error) {
       toast({
         title: 'Erro ao processar arquivo',
@@ -182,36 +227,40 @@ export default function DataImportPage() {
     }
   }
 
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <div className="flex items-center gap-3 mb-8">
-        <Database className="w-8 h-8 text-primary" />
+        <div className="p-3 bg-primary/10 rounded-xl">
+          <Database className="w-8 h-8 text-primary" />
+        </div>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Importação Financeira</h1>
-          <p className="text-muted-foreground">
-            Importe seus lançamentos financeiros em lotes e reconcilie automaticamente com vendas e
-            contas a pagar.
+          <p className="text-muted-foreground mt-1">
+            Importe registros em lote e reconcilie automaticamente com vendas e contas a pagar.
           </p>
         </div>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Nova Importação</CardTitle>
+          <CardTitle>Iniciar Importação</CardTitle>
           <CardDescription>
-            Selecione uma planilha (formato CSV) exportada do seu sistema financeiro (ex: Conta
-            Azul).
+            Faça upload da planilha exportada pelo seu sistema financeiro (formato .csv).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
+              className="w-full sm:w-auto"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Selecionar Arquivo
+              Selecionar Arquivo CSV
             </Button>
             <input
               type="file"
@@ -220,112 +269,194 @@ export default function DataImportPage() {
               ref={fileInputRef}
               onChange={handleFileChange}
             />
-            {file && <span className="text-sm font-medium">{file.name}</span>}
+            {file && (
+              <div className="flex items-center gap-2 text-sm font-medium bg-muted px-3 py-1.5 rounded-md">
+                <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
+                {file.name}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 p-4 rounded-lg flex items-start gap-3 text-sm">
+            <Info className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p>
+                <strong>Deduplicação Inteligente:</strong> O sistema ignora automaticamente
+                lançamentos que já foram importados anteriormente.
+              </p>
+              <p>
+                <strong>Conciliação Automática:</strong> Entradas de Receita (QUITADO) são ligadas a
+                Vendas correspondentes. Despesas geram Contas a Pagar automaticamente.
+              </p>
+              <p>
+                <strong>Controle de Lotes:</strong> Arquivos grandes são processados em lotes de 50
+                itens com pausa de segurança para garantir a integridade.
+              </p>
+            </div>
           </div>
 
           {importing && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Processando lançamentos em lotes...</span>
+            <div className="space-y-3 pt-4">
+              <div className="flex justify-between text-sm font-medium">
+                <span className="text-primary animate-pulse">Processando lote financeiro...</span>
                 <span>{progress}%</span>
               </div>
               <Progress value={progress} className="h-2" />
             </div>
           )}
         </CardContent>
-        <CardFooter>
-          <Button onClick={handleImport} disabled={!file || importing} className="w-full sm:w-auto">
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            {importing ? 'Importando...' : 'Iniciar Importação'}
+        <CardFooter className="bg-muted/30 border-t pt-6">
+          <Button
+            size="lg"
+            onClick={handleImport}
+            disabled={!file || importing}
+            className="w-full sm:w-auto"
+          >
+            <Database className="w-4 h-4 mr-2" />
+            {importing ? 'Importando Lotes...' : 'Processar Importação'}
           </Button>
         </CardFooter>
       </Card>
 
       {report && (
-        <Card className="border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-900/10">
-          <CardHeader>
-            <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-              <CheckCircle2 className="w-5 h-5" />
-              <CardTitle>Relatório de Importação</CardTitle>
+        <div className="space-y-6 animate-fade-in-up">
+          <div
+            className={`p-5 rounded-lg border flex items-center gap-4 shadow-sm ${
+              report.errors > 0
+                ? 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-400'
+                : 'bg-green-50 border-green-200 text-green-800 dark:bg-green-950/30 dark:border-green-900/50 dark:text-green-400'
+            }`}
+          >
+            {report.errors > 0 ? (
+              <AlertTriangle className="w-8 h-8 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-8 h-8 shrink-0" />
+            )}
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">
+                {report.errors > 0
+                  ? 'Importação parcial — tente novamente os lotes com erro'
+                  : 'Importação financeira concluída'}
+              </h2>
+              <p className="text-sm opacity-90 mt-1">
+                A operação foi finalizada. Consulte o painel analítico abaixo para os resultados das
+                conciliações. Registros não vinculados foram marcados com [UNLINKED] para revisão.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Resumo do Processamento
-              </h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Lançamentos Identificados:</span>
-                  <span className="font-medium">{report.total}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Importados com Sucesso:</span>
-                  <span className="font-medium text-green-600">{report.success}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Duplicados (Ignorados):</span>
-                  <span className="font-medium text-amber-600">{report.duplicates}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Erros:</span>
-                  <span className="font-medium text-red-600">{report.errors}</span>
-                </li>
-              </ul>
+          </div>
 
-              <h3 className="font-semibold pt-4">Valores Financeiros</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Total de Receitas:</span>
-                  <span className="font-medium text-green-600">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      report.sumRevenue,
-                    )}
-                  </span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Total de Despesas:</span>
-                  <span className="font-medium text-red-600">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      report.sumExpense,
-                    )}
-                  </span>
-                </li>
-              </ul>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Resumo de Processamento</CardDescription>
+                <CardTitle className="text-3xl">{report.total}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div className="flex justify-between">
+                    <span>Lotes Sucesso / Falha:</span>
+                    <span className="font-medium text-foreground">
+                      {report.batchSuccessCount} / {report.batchFailCount}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Duplicados (Ignorados):</span>
+                    <span className="font-medium text-foreground">{report.duplicates}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Erros de Estrutura:</span>
+                    <span className="font-medium text-red-500">{report.errors}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="space-y-4">
-              <h3 className="font-semibold">Reconciliação Automática</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Contas a Receber Atualizadas:</span>
-                  <span className="font-medium">{report.updatedReceber}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Contas a Pagar Criadas:</span>
-                  <span className="font-medium">{report.createdPagar}</span>
-                </li>
-              </ul>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Totais Financeiros</CardDescription>
+                <CardTitle className="text-2xl text-green-600 dark:text-green-500">
+                  {formatCurrency(report.sumRevenue)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span>Total de Despesas:</span>
+                    <span className="font-medium text-red-500">
+                      {formatCurrency(report.sumExpense)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t mt-1">
+                    <span>Saldo do Lote:</span>
+                    <span
+                      className={`font-medium ${report.sumRevenue - report.sumExpense >= 0 ? 'text-green-600' : 'text-red-500'}`}
+                    >
+                      {formatCurrency(report.sumRevenue - report.sumExpense)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              <h3 className="font-semibold pt-4">Status Geral de Vendas</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Quitadas:</span>
-                  <span className="font-medium text-green-600">{report.salesStatus.quitadas}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Parcialmente Quitadas:</span>
-                  <span className="font-medium text-amber-600">{report.salesStatus.parcial}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">Pendentes:</span>
-                  <span className="font-medium">{report.salesStatus.pendentes}</span>
-                </li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Métricas Operacionais</CardDescription>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  Geração Auto
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div className="flex justify-between">
+                    <span>Contas a Receber Atualizadas:</span>
+                    <span className="font-medium text-primary">{report.updatedReceber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Contas a Pagar Criadas:</span>
+                    <span className="font-medium text-primary">{report.createdPagar}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Status Geral da Carteira de Vendas</CardTitle>
+              <CardDescription>
+                Resumo da situação das vendas no sistema após a conciliação financeira do arquivo
+                importado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-100 dark:border-green-900/30">
+                  <div className="text-3xl font-bold text-green-600 dark:text-green-500">
+                    {report.salesStatus.quitadas}
+                  </div>
+                  <div className="text-sm font-medium text-green-800 dark:text-green-400 mt-1">
+                    Quitadas
+                  </div>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                  <div className="text-3xl font-bold text-amber-600 dark:text-amber-500">
+                    {report.salesStatus.parcial}
+                  </div>
+                  <div className="text-sm font-medium text-amber-800 dark:text-amber-400 mt-1">
+                    Parcialmente Quitadas
+                  </div>
+                </div>
+                <div className="bg-muted p-4 rounded-lg border">
+                  <div className="text-3xl font-bold text-foreground">
+                    {report.salesStatus.pendentes}
+                  </div>
+                  <div className="text-sm font-medium text-muted-foreground mt-1">Pendentes</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   )
