@@ -356,6 +356,8 @@ export default function DataImportPage() {
           existingVendasRaw.map((v) => v.numero_venda).filter((n) => n !== null && n !== undefined),
         )
 
+        // Filter duplicates in the same file
+        const uniqueDataMap = new Map<number, any>()
         for (let i = 0; i < rawData.length; i++) {
           const row = rawData[i]
           const cleanRow: any = {}
@@ -369,42 +371,79 @@ export default function DataImportPage() {
           }
 
           const numeroRaw =
-            cleanRow['numero'] || cleanRow['venda'] || cleanRow['numero da venda'] || cleanRow['id']
+            cleanRow['numero_venda'] ||
+            cleanRow['numero'] ||
+            cleanRow['venda'] ||
+            cleanRow['numero da venda'] ||
+            cleanRow['id']
           const numeroStr = String(numeroRaw).replace(/\D/g, '')
           const numero_venda = numeroStr ? parseInt(numeroStr, 10) : null
 
-          if (!numero_venda || isNaN(numero_venda)) {
+          if (numero_venda && !isNaN(numero_venda)) {
+            // Keep the first instance found
+            if (!uniqueDataMap.has(numero_venda)) {
+              cleanRow._originalIndex = i + 2
+              cleanRow._numero_venda = numero_venda
+              uniqueDataMap.set(numero_venda, cleanRow)
+            }
+          } else {
             logs.push(`Conta Azul (Linha ${i + 2}): ignorada - sem número de venda válido.`)
-            continue
           }
+        }
+
+        const dataToProcess = Array.from(uniqueDataMap.values())
+
+        for (const cleanRow of dataToProcess) {
+          const originalLine = cleanRow._originalIndex
+          const numero_venda = cleanRow._numero_venda
 
           if (existingNumbers.has(numero_venda)) {
             logs.push(
-              `Conta Azul (Linha ${i + 2}): ignorada - venda número ${numero_venda} já importada.`,
+              `Conta Azul (Linha ${originalLine}): ignorada - venda número ${numero_venda} já importada.`,
             )
             continue
           }
 
           const valorTotalRaw =
-            cleanRow['valor total'] || cleanRow['valor'] || cleanRow['total'] || '0'
+            cleanRow['valor_total'] ||
+            cleanRow['valor total'] ||
+            cleanRow['valor'] ||
+            cleanRow['total'] ||
+            '0'
           const valorTotal = parseBrCurrency(valorTotalRaw)
-          if (valorTotalRaw && isNaN(valorTotal)) {
-            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - valor numérico inválido.`)
-            continue
+
+          const valorDescontoRaw = cleanRow['valor_desconto'] || cleanRow['desconto'] || '0'
+          const valorDesconto = parseBrCurrency(valorDescontoRaw)
+
+          const observacoes =
+            cleanRow['observacoes de vendas'] ||
+            cleanRow['observacoes'] ||
+            cleanRow['observacao'] ||
+            ''
+
+          const vendedorRaw = cleanRow['vendedor'] || ''
+          let vendedorId = null
+          if (vendedorRaw) {
+            const vMatch = userMapByName.get(normName(vendedorRaw))
+            if (vMatch) vendedorId = vMatch
           }
 
-          const dataVendaRaw = cleanRow['data da venda'] || cleanRow['emissao'] || cleanRow['data']
+          const dataVendaRaw =
+            cleanRow['data venda'] ||
+            cleanRow['data da venda'] ||
+            cleanRow['emissao'] ||
+            cleanRow['data']
           const dataVendaStr = parseExcelOrBrDate(dataVendaRaw)
-          if (dataVendaRaw && !dataVendaStr) {
-            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - formato de data de venda inválido.`)
-            continue
-          }
           const dataVenda = dataVendaStr || new Date().toISOString()
 
-          const dataCancelamentoRaw = cleanRow['data de cancelamento'] || cleanRow['cancelamento']
+          const dataCancelamentoRaw =
+            cleanRow['data cancelamento'] ||
+            cleanRow['data de cancelamento'] ||
+            cleanRow['cancelamento']
           const dataCancelamento = parseExcelOrBrDate(dataCancelamentoRaw)
 
           const docRaw =
+            cleanRow['cpf_cnpj'] ||
             cleanRow['cpf'] ||
             cleanRow['cnpj'] ||
             cleanRow['cpf/cnpj'] ||
@@ -430,10 +469,10 @@ export default function DataImportPage() {
             }
           }
 
-          if (!pid && nomeRaw) {
+          if (!pid && (nomeRaw || docClean)) {
             try {
               const pData = {
-                nome: nomeRaw,
+                nome: nomeRaw || 'Cliente Sem Nome',
                 cpf_cnpj: docClean,
                 tipo: 'Cliente',
                 ativo: true,
@@ -441,17 +480,17 @@ export default function DataImportPage() {
               const novo = await pb.collection('pacientes').create(pData, { requestKey: null })
               pid = novo.id
               if (docClean) patientMapByDoc.set(docClean, pid)
-              patientMap.set(`${nomeClean}|`, pid)
+              if (nomeClean) patientMap.set(`${nomeClean}|`, pid)
               contaAzulRes.clientesNovos++
             } catch (err: any) {
               logs.push(
-                `Conta Azul (Linha ${i + 2}): erro ao criar cliente ${nomeRaw} - ${err.message}`,
+                `Conta Azul (Linha ${originalLine}): erro ao criar cliente ${nomeRaw} - ${err.message}`,
               )
             }
           }
 
           if (!pid) {
-            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - sem cliente.`)
+            logs.push(`Conta Azul (Linha ${originalLine}): ignorada - sem cliente.`)
             continue
           }
 
@@ -459,32 +498,33 @@ export default function DataImportPage() {
             const isCancelada = !!dataCancelamento
             const statusVenda = isCancelada ? 'Cancelada' : 'Ativa'
 
-            const venda = await pb.collection('vendas').create(
-              {
-                paciente_id: pid,
-                tipo: 'tratamento',
-                valor_total: valorTotal,
-                valor_final: valorTotal,
-                status: statusVenda,
-                data_venda: dataVenda,
-                numero_venda: numero_venda,
-                data_cancelamento: dataCancelamento || null,
-              },
-              { requestKey: null },
-            )
+            const vendaData: any = {
+              paciente_id: pid,
+              tipo: 'tratamento',
+              valor_total: valorTotal,
+              desconto_cortesia: valorDesconto,
+              valor_final: Math.max(0, valorTotal - valorDesconto),
+              status: statusVenda,
+              data_venda: dataVenda,
+              numero_venda: numero_venda,
+              data_cancelamento: dataCancelamento || null,
+              observacoes: observacoes,
+            }
+
+            if (vendedorId) {
+              vendaData.vendedor_id = vendedorId
+            }
+
+            const venda = await pb.collection('vendas').create(vendaData, { requestKey: null })
 
             contaAzulRes.vendasImportadas++
             contaAzulRes.valorTotalVendas += valorTotal
             existingNumbers.add(numero_venda)
 
             if (!isCancelada) {
-              const vencimentoRaw = cleanRow['data de vencimento'] || cleanRow['vencimento']
-              let dtVencimento = parseExcelOrBrDate(vencimentoRaw)
-              if (!dtVencimento) {
-                const d = new Date(dataVenda)
-                d.setDate(d.getDate() + 30)
-                dtVencimento = d.toISOString()
-              }
+              const d = new Date(dataVenda)
+              d.setDate(d.getDate() + 30)
+              const dtVencimento = d.toISOString()
 
               await pb.collection('contas_receber').create(
                 {
@@ -502,7 +542,9 @@ export default function DataImportPage() {
               contaAzulRes.contasReceberCriadas++
             }
           } catch (err: any) {
-            logs.push(`Conta Azul (Linha ${i + 2}): erro ao criar venda/conta - ${err.message}`)
+            logs.push(
+              `Conta Azul (Linha ${originalLine}): erro ao criar venda/conta - ${err.message}`,
+            )
           }
         }
       }
