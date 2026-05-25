@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { parseCSV, parseXLSX, parseExcelOrBrDate, parseBrCurrency } from '@/lib/import-utils'
+import { parseXLSX, parseExcelOrBrDate, parseBrCurrency } from '@/lib/import-utils'
 import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -52,23 +52,24 @@ export default function DataImportPage() {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '')
       normalizedRow[normalizedKey] = row[key]
     }
 
-    const data = parseExcelOrBrDate(getVal(normalizedRow, ['data', 'date', 'data do lancamento']))
+    const data = parseExcelOrBrDate(getVal(normalizedRow, ['data', 'date', 'datadolancamento']))
     const data_quitacao = parseExcelOrBrDate(
-      getVal(normalizedRow, ['data de quitacao', 'data quitacao', 'data de pagamento']),
+      getVal(normalizedRow, ['datadequitacao', 'dataquitacao', 'datapagamento']),
     )
     const nome_negociador = getVal(normalizedRow, [
-      'cliente/fornecedor',
-      'nome do cliente/fornecedor',
-      'nome do clientefornecedor',
+      'clientefornecedor',
+      'nomedoclientefornecedor',
       'nome',
       'fornecedor',
       'cliente',
     ])
-    // The requirement implies strictly 2 decimals
-    const valor = parseBrCurrency(getVal(normalizedRow, ['valor', 'value']))
+
+    const rawValor = parseBrCurrency(getVal(normalizedRow, ['valor', 'value']))
+    const valor = Math.abs(rawValor) // Handled as positive decimal
 
     const tipoStr = String(getVal(normalizedRow, ['tipo', 'type'])).toUpperCase()
     let tipo = 'EXPENSE'
@@ -97,22 +98,16 @@ export default function DataImportPage() {
       descricao,
       status,
       data_vencimento: parseExcelOrBrDate(
-        getVal(normalizedRow, ['data de vencimento', 'vencimento']),
+        getVal(normalizedRow, ['datadevencimento', 'vencimento']),
       ),
       data_competencia: parseExcelOrBrDate(
-        getVal(normalizedRow, ['data de competencia', 'competencia']),
+        getVal(normalizedRow, ['datadecompetencia', 'competencia']),
       ),
-      data_pagamento_esperada: parseExcelOrBrDate(
-        getVal(normalizedRow, ['data de pagamento esperada']),
-      ),
-      metodo_pagamento: getVal(normalizedRow, [
-        'metodo de pagamento',
-        'forma de pagamento',
-        'metodo',
-      ]),
-      conta_financeira: getVal(normalizedRow, ['conta financeira', 'conta']),
+      data_pagamento_esperada: parseExcelOrBrDate(getVal(normalizedRow, ['datapagamentoesperada'])),
+      metodo_pagamento: getVal(normalizedRow, ['metododepagamento', 'formadepagamento', 'metodo']),
+      conta_financeira: getVal(normalizedRow, ['contafinanceira', 'conta']),
       categoria: getVal(normalizedRow, ['categoria', 'grupo']),
-      centro_custo: getVal(normalizedRow, ['centro de custo', 'centro de custos']),
+      centro_custo: getVal(normalizedRow, ['centrodecusto', 'centrodecustos']),
       hash: `${data}_${valor}_${descricao}`.substring(0, 250),
     }
   }
@@ -126,19 +121,13 @@ export default function DataImportPage() {
     try {
       let rows: any[] = []
 
-      if (file.name.toLowerCase().endsWith('.csv')) {
-        const text = await file.text()
-        rows = parseCSV(text)
-      } else if (
-        file.name.toLowerCase().endsWith('.xlsx') ||
-        file.name.toLowerCase().endsWith('.xls')
-      ) {
+      if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
         rows = await parseXLSX(file)
       } else {
-        throw new Error('Formato de arquivo não suportado. Use apenas .csv ou .xlsx')
+        throw new Error('Formato de arquivo não suportado. Use apenas planilhas .xlsx')
       }
 
-      const records = rows.map(mapRow).filter((r) => r.data && r.valor > 0)
+      const records = rows.map(mapRow).filter((r) => r.data && typeof r.valor === 'number')
 
       if (records.length === 0) {
         toast({ title: 'Nenhum registro válido encontrado', variant: 'destructive' })
@@ -417,7 +406,7 @@ export default function DataImportPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Importação Financeira</h1>
           <p className="text-muted-foreground mt-1">
-            Importe registros em lote (.csv ou .xlsx) e reconcilie automaticamente com vendas e
+            Importe registros em lote (arquivo .xlsx) e reconcilie automaticamente com vendas e
             contas a pagar.
           </p>
         </div>
@@ -427,7 +416,7 @@ export default function DataImportPage() {
         <CardHeader>
           <CardTitle>Iniciar Importação</CardTitle>
           <CardDescription>
-            Faça upload da planilha exportada pelo seu sistema financeiro (formato .csv ou .xlsx).
+            Faça upload da planilha exportada pelo seu sistema financeiro (formato .xlsx).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -443,7 +432,7 @@ export default function DataImportPage() {
             </Button>
             <input
               type="file"
-              accept=".csv, .xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+              accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileChange}

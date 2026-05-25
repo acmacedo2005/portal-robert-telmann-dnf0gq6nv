@@ -24,7 +24,8 @@ export function parseCSV(text: string): any[] {
     h
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, ''),
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, ''),
   )
 
   const data = []
@@ -53,7 +54,7 @@ export async function parseXLSX(file: File): Promise<any[]> {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
-        .trim()
+        .replace(/[^a-z0-9]/g, '')
       normalizedRow[normalizedKey] = row[key]
     }
     return normalizedRow
