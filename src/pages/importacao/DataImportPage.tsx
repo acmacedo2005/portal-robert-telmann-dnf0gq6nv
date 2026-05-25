@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Progress } from '@/components/ui/progress'
 import {
   Table,
   TableBody,
@@ -213,6 +214,12 @@ export default function DataImportPage() {
   } | null>(null)
 
   const [loading, setLoading] = useState(false)
+  const [importProgress, setImportProgress] = useState<{
+    current: number
+    total: number
+    status: string
+  } | null>(null)
+
   const [results, setResults] = useState<{
     pacientes: number
     vendas: number
@@ -246,6 +253,8 @@ export default function DataImportPage() {
       clientesNovos: number
       contasReceberCriadas: number
       valorTotalVendas: number
+      lotesProcessados: number
+      lotesComErro: number
     }
     erros: string[]
   } | null>(null)
@@ -254,7 +263,6 @@ export default function DataImportPage() {
     setIsWiping(true)
     setWipeResults(null)
     try {
-      // Coleta as contagens antes da exclusão para exibir no relatório
       const resPagamentos = await pb.collection('pagamentos').getList(1, 1, { requestKey: null })
       const resContas = await pb.collection('contas_receber').getList(1, 1, { requestKey: null })
       const resVendas = await pb.collection('vendas').getList(1, 1, { requestKey: null })
@@ -265,7 +273,6 @@ export default function DataImportPage() {
         vendas: resVendas.totalItems,
       }
 
-      // Chama a rota personalizada do backend para truncar as tabelas
       await pb.send('/backend/v1/import/wipe-vendas', { method: 'POST' })
 
       setWipeResults({
@@ -293,6 +300,25 @@ export default function DataImportPage() {
     })
   }
 
+  const withRetry = async <T,>(
+    operation: () => Promise<T>,
+    retries = 3,
+    delayMs = 5000,
+  ): Promise<T> => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await operation()
+      } catch (err: any) {
+        if ((err.status === 429 || err?.response?.code === 429) && attempt < retries) {
+          await new Promise((r) => setTimeout(r, delayMs))
+        } else {
+          throw err
+        }
+      }
+    }
+    throw new Error('Maximum retries reached')
+  }
+
   const handleImport = async () => {
     if (
       !pessoasFile &&
@@ -316,6 +342,7 @@ export default function DataImportPage() {
 
     setLoading(true)
     setResults(null)
+    setImportProgress({ current: 0, total: 0, status: 'Inicializando...' })
 
     const logs: string[] = []
     let pacientesImportados = 0
@@ -350,6 +377,8 @@ export default function DataImportPage() {
       clientesNovos: 0,
       contasReceberCriadas: 0,
       valorTotalVendas: 0,
+      lotesProcessados: 0,
+      lotesComErro: 0,
     }
 
     try {
@@ -390,6 +419,7 @@ export default function DataImportPage() {
 
       // Import Conta Azul Vendas
       if (contaAzulFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Lendo arquivo Conta Azul...' })
         const isXlsx = contaAzulFile.name.toLowerCase().endsWith('.xlsx')
         let rawData: any[] = []
         if (isXlsx) {
@@ -416,7 +446,7 @@ export default function DataImportPage() {
           const row = rawData[i]
           const cleanRow: any = {}
           for (const key in row) {
-            const cleanKey = key
+            const cleanKey = String(key)
               .toLowerCase()
               .normalize('NFD')
               .replace(/[\u0300-\u036f]/g, '')
@@ -424,17 +454,18 @@ export default function DataImportPage() {
             cleanRow[cleanKey] = row[key]
           }
 
-          const numeroRaw =
+          const numeroRaw = String(
             cleanRow['numero_venda'] ||
-            cleanRow['numero'] ||
-            cleanRow['venda'] ||
-            cleanRow['numero da venda'] ||
-            cleanRow['id']
-          const numeroStr = String(numeroRaw).replace(/\D/g, '')
+              cleanRow['numero'] ||
+              cleanRow['venda'] ||
+              cleanRow['numero da venda'] ||
+              cleanRow['id'] ||
+              '',
+          )
+          const numeroStr = numeroRaw.replace(/\D/g, '')
           const numero_venda = numeroStr ? parseInt(numeroStr, 10) : null
 
           if (numero_venda && !isNaN(numero_venda)) {
-            // Keep the first instance found
             if (!uniqueDataMap.has(numero_venda)) {
               cleanRow._originalIndex = i + 2
               cleanRow._numero_venda = numero_venda
@@ -446,182 +477,220 @@ export default function DataImportPage() {
         }
 
         const dataToProcess = Array.from(uniqueDataMap.values())
+        setImportProgress({
+          current: 0,
+          total: dataToProcess.length,
+          status: 'Processando lotes (20 registros/lote)...',
+        })
 
-        for (const cleanRow of dataToProcess) {
-          const originalLine = cleanRow._originalIndex
-          const numero_venda = cleanRow._numero_venda
+        const BATCH_SIZE = 20
 
-          if (existingNumbers.has(numero_venda)) {
-            logs.push(
-              `Conta Azul (Linha ${originalLine}): ignorada - venda número ${numero_venda} já importada.`,
-            )
-            continue
-          }
+        for (let i = 0; i < dataToProcess.length; i += BATCH_SIZE) {
+          const batch = dataToProcess.slice(i, i + BATCH_SIZE)
+          let batchErrors = 0
 
-          const valorTotalRaw =
-            cleanRow['valor_total'] ||
-            cleanRow['valor total'] ||
-            cleanRow['valor'] ||
-            cleanRow['total'] ||
-            '0'
-          const valorTotal = parseBrCurrency(valorTotalRaw)
-
-          const valorDescontoRaw = cleanRow['valor_desconto'] || cleanRow['desconto'] || '0'
-          const valorDesconto = parseBrCurrency(valorDescontoRaw)
-
-          const observacoesRaw =
-            cleanRow['observacoes de vendas'] ||
-            cleanRow['observacoes'] ||
-            cleanRow['observacao'] ||
-            ''
-
-          const vendedorRaw = cleanRow['vendedor'] || ''
-          let vendedorId = null
-          if (vendedorRaw) {
-            const vMatch = userMapByName.get(normName(vendedorRaw))
-            if (vMatch) vendedorId = vMatch
-          }
-
-          const formaPagamento =
-            cleanRow['forma de pagamento'] ||
-            cleanRow['forma pagamento'] ||
-            cleanRow['condicao de pagamento'] ||
-            ''
-          const servicoRaw =
-            cleanRow['produtos/servicos'] ||
-            cleanRow['produto/servico'] ||
-            cleanRow['servico'] ||
-            ''
-
-          const obsList = []
-          if (servicoRaw) obsList.push(`Serviço: ${servicoRaw}`)
-          if (formaPagamento) obsList.push(`Pagamento: ${formaPagamento}`)
-          if (observacoesRaw) obsList.push(`Obs: ${observacoesRaw}`)
-          const observacoes = obsList.join(' | ')
-
-          const dataVendaRaw =
-            cleanRow['data venda'] ||
-            cleanRow['data da venda'] ||
-            cleanRow['emissao'] ||
-            cleanRow['data']
-          const dataVendaStr = parseExcelOrBrDate(dataVendaRaw)
-          const dataVenda = dataVendaStr || new Date().toISOString()
-
-          const dataCancelamentoRaw =
-            cleanRow['data cancelamento'] ||
-            cleanRow['data de cancelamento'] ||
-            cleanRow['cancelamento']
-          const dataCancelamento = parseExcelOrBrDate(dataCancelamentoRaw)
-
-          const docRaw =
-            cleanRow['cpf_cnpj'] ||
-            cleanRow['cpf'] ||
-            cleanRow['cnpj'] ||
-            cleanRow['cpf/cnpj'] ||
-            cleanRow['cpf/cnpj do cliente'] ||
-            ''
-          const docClean = normPhone(docRaw)
-          const nomeRaw =
-            cleanRow['cliente'] || cleanRow['nome'] || cleanRow['nome do cliente'] || ''
-          const nomeClean = normName(nomeRaw)
-
-          let pid = null
-
-          if (docClean && patientMapByDoc.has(docClean)) {
-            pid = patientMapByDoc.get(docClean)
-            contaAzulRes.clientesLocalizados++
-          } else if (nomeClean) {
-            for (const [k, v] of patientMap.entries()) {
-              if (k.startsWith(nomeClean + '|')) {
-                pid = v
-                contaAzulRes.clientesLocalizados++
-                break
-              }
-            }
-          }
-
-          if (!pid && (nomeRaw || docClean)) {
+          for (const cleanRow of batch) {
             try {
-              const pData = {
-                nome: nomeRaw || 'Cliente Sem Nome',
-                cpf_cnpj: docClean,
-                tipo: 'Cliente',
-                ativo: true,
+              const originalLine = cleanRow._originalIndex
+              const numero_venda = cleanRow._numero_venda
+
+              if (existingNumbers.has(numero_venda)) {
+                continue
               }
-              const novo = await pb.collection('pacientes').create(pData, { requestKey: null })
-              pid = novo.id
-              if (docClean) patientMapByDoc.set(docClean, pid)
-              if (nomeClean) patientMap.set(`${nomeClean}|`, pid)
-              contaAzulRes.clientesNovos++
+
+              const valorTotalRaw = String(
+                cleanRow['valor_total'] ||
+                  cleanRow['valor total'] ||
+                  cleanRow['valor'] ||
+                  cleanRow['total'] ||
+                  '0',
+              )
+              const valorTotal = parseBrCurrency(valorTotalRaw)
+
+              const valorDescontoRaw = String(
+                cleanRow['valor_desconto'] || cleanRow['desconto'] || '0',
+              )
+              const valorDesconto = parseBrCurrency(valorDescontoRaw)
+
+              const observacoesRaw = String(
+                cleanRow['observacoes de vendas'] ||
+                  cleanRow['observacoes'] ||
+                  cleanRow['observacao'] ||
+                  '',
+              )
+
+              const vendedorRaw = String(cleanRow['vendedor'] || '')
+              let vendedorId = null
+              if (vendedorRaw) {
+                const vMatch = userMapByName.get(normName(vendedorRaw))
+                if (vMatch) vendedorId = vMatch
+              }
+
+              const formaPagamento = String(
+                cleanRow['forma de pagamento'] ||
+                  cleanRow['forma pagamento'] ||
+                  cleanRow['condicao de pagamento'] ||
+                  '',
+              )
+              const servicoRaw = String(
+                cleanRow['produtos/servicos'] ||
+                  cleanRow['produto/servico'] ||
+                  cleanRow['servico'] ||
+                  '',
+              )
+
+              const obsList = []
+              if (servicoRaw) obsList.push(`Serviço: ${servicoRaw}`)
+              if (formaPagamento) obsList.push(`Pagamento: ${formaPagamento}`)
+              if (observacoesRaw) obsList.push(`Obs: ${observacoesRaw}`)
+              const observacoes = obsList.join(' | ')
+
+              const dataVendaRaw = String(
+                cleanRow['data venda'] ||
+                  cleanRow['data da venda'] ||
+                  cleanRow['emissao'] ||
+                  cleanRow['data'] ||
+                  '',
+              )
+              const dataVendaStr = parseExcelOrBrDate(dataVendaRaw)
+              const dataVenda = dataVendaStr || new Date().toISOString()
+
+              const dataCancelamentoRaw = String(
+                cleanRow['data cancelamento'] ||
+                  cleanRow['data de cancelamento'] ||
+                  cleanRow['cancelamento'] ||
+                  '',
+              )
+              const dataCancelamento = parseExcelOrBrDate(dataCancelamentoRaw)
+
+              const docRaw = String(
+                cleanRow['cpf_cnpj'] ||
+                  cleanRow['cpf'] ||
+                  cleanRow['cnpj'] ||
+                  cleanRow['cpf/cnpj'] ||
+                  cleanRow['cpf/cnpj do cliente'] ||
+                  '',
+              )
+              const docClean = normPhone(docRaw)
+              const nomeRaw = String(
+                cleanRow['cliente'] || cleanRow['nome'] || cleanRow['nome do cliente'] || '',
+              )
+              const nomeClean = normName(nomeRaw)
+
+              let pid = null
+
+              // Patient resolution
+              if (docClean && patientMapByDoc.has(docClean)) {
+                pid = patientMapByDoc.get(docClean)
+                contaAzulRes.clientesLocalizados++
+              } else if (nomeClean) {
+                for (const [k, v] of patientMap.entries()) {
+                  if (k.startsWith(nomeClean + '|')) {
+                    pid = v
+                    contaAzulRes.clientesLocalizados++
+                    break
+                  }
+                }
+              }
+
+              // Create Patient if not found
+              if (!pid && (nomeRaw || docClean)) {
+                const pData = {
+                  nome: nomeRaw || 'Cliente Sem Nome',
+                  cpf_cnpj: docClean,
+                  tipo: 'Cliente',
+                  ativo: true,
+                }
+                const novo = await withRetry(() =>
+                  pb.collection('pacientes').create(pData, { requestKey: null }),
+                )
+                pid = novo.id
+                if (docClean) patientMapByDoc.set(docClean, pid)
+                if (nomeClean) patientMap.set(`${nomeClean}|`, pid)
+                contaAzulRes.clientesNovos++
+              }
+
+              if (!pid) {
+                logs.push(`Conta Azul (Linha ${originalLine}): ignorada - sem cliente.`)
+                continue
+              }
+
+              const isCancelada = !!dataCancelamento
+              const statusVenda = isCancelada ? 'Cancelada' : 'Ativa'
+
+              const vendaData: any = {
+                paciente_id: pid,
+                tipo: 'tratamento',
+                valor_total: valorTotal,
+                desconto_cortesia: valorDesconto,
+                valor_final: Math.max(0, valorTotal - valorDesconto),
+                status: statusVenda,
+                data_venda: dataVenda,
+                numero_venda: numero_venda,
+                data_cancelamento: dataCancelamento || null,
+                observacoes: observacoes,
+              }
+
+              if (vendedorId) {
+                vendaData.vendedor_id = vendedorId
+              }
+
+              // Create Venda
+              const venda = await withRetry(() =>
+                pb.collection('vendas').create(vendaData, { requestKey: null }),
+              )
+              contaAzulRes.vendasImportadas++
+              contaAzulRes.valorTotalVendas += valorTotal
+              existingNumbers.add(numero_venda)
+
+              // Create Contas a Receber for Active sales
+              if (!isCancelada) {
+                const d = new Date(dataVenda)
+                d.setDate(d.getDate() + 30)
+                const dtVencimento = d.toISOString()
+
+                await withRetry(() =>
+                  pb.collection('contas_receber').create(
+                    {
+                      venda_id: venda.id,
+                      paciente_id: pid,
+                      valor_total: valorTotal,
+                      valor_recebido: 0,
+                      valor_pendente: valorTotal,
+                      status: 'Pendente',
+                      data_vencimento: dtVencimento,
+                    },
+                    { requestKey: null },
+                  ),
+                )
+                contaAzulRes.contasReceberCriadas++
+              }
             } catch (err: any) {
               logs.push(
-                `Conta Azul (Linha ${originalLine}): erro ao criar cliente ${nomeRaw} - ${err.message}`,
+                `Conta Azul (Linha ${cleanRow._originalIndex}): erro no processamento - ${err.message}`,
               )
+              batchErrors++
             }
           }
 
-          if (!pid) {
-            logs.push(`Conta Azul (Linha ${originalLine}): ignorada - sem cliente.`)
-            continue
-          }
+          if (batchErrors === 0) contaAzulRes.lotesProcessados++
+          else contaAzulRes.lotesComErro++
 
-          try {
-            const isCancelada = !!dataCancelamento
-            const statusVenda = isCancelada ? 'Cancelada' : 'Ativa'
+          setImportProgress({
+            current: Math.min(i + BATCH_SIZE, dataToProcess.length),
+            total: dataToProcess.length,
+            status: `Lote ${Math.floor(i / BATCH_SIZE) + 1} processado...`,
+          })
 
-            const vendaData: any = {
-              paciente_id: pid,
-              tipo: 'tratamento',
-              valor_total: valorTotal,
-              desconto_cortesia: valorDesconto,
-              valor_final: Math.max(0, valorTotal - valorDesconto),
-              status: statusVenda,
-              data_venda: dataVenda,
-              numero_venda: numero_venda,
-              data_cancelamento: dataCancelamento || null,
-              observacoes: observacoes,
-            }
-
-            if (vendedorId) {
-              vendaData.vendedor_id = vendedorId
-            }
-
-            const venda = await pb.collection('vendas').create(vendaData, { requestKey: null })
-
-            contaAzulRes.vendasImportadas++
-            contaAzulRes.valorTotalVendas += valorTotal
-            existingNumbers.add(numero_venda)
-
-            if (!isCancelada) {
-              const d = new Date(dataVenda)
-              d.setDate(d.getDate() + 30)
-              const dtVencimento = d.toISOString()
-
-              await pb.collection('contas_receber').create(
-                {
-                  venda_id: venda.id,
-                  paciente_id: pid,
-                  valor_total: valorTotal,
-                  valor_recebido: 0,
-                  valor_pendente: valorTotal,
-                  status: 'Pendente',
-                  data_vencimento: dtVencimento,
-                },
-                { requestKey: null },
-              )
-
-              contaAzulRes.contasReceberCriadas++
-            }
-          } catch (err: any) {
-            logs.push(
-              `Conta Azul (Linha ${originalLine}): erro ao criar venda/conta - ${err.message}`,
-            )
+          if (i + BATCH_SIZE < dataToProcess.length) {
+            await new Promise((r) => setTimeout(r, 2000))
           }
         }
       }
 
       // Import Planilha Mestre
       if (cadastroFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Lendo Cadastro Master...' })
         const isXlsx = cadastroFile.name.toLowerCase().endsWith('.xlsx')
         let data: any[] = []
 
@@ -635,7 +704,7 @@ export default function DataImportPage() {
           data = rawData.map((row) => {
             const newRow: any = {}
             for (const key in row) {
-              const cleanKey = key
+              const cleanKey = String(key)
                 .toLowerCase()
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '')
@@ -666,8 +735,8 @@ export default function DataImportPage() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const nome = row.nome || row.cliente || ''
-          const emailRaw = row.email || ''
+          const nome = String(row.nome || row.cliente || '')
+          const emailRaw = String(row.email || '')
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
           const email = emailRegex.test(emailRaw) ? emailRaw : ''
 
@@ -721,16 +790,16 @@ export default function DataImportPage() {
               telefone: fone_celular || fone_comercial,
               cpf_cnpj,
               tipo_pessoa,
-              tipo: row.tipo || 'Cliente',
-              inscricao_estadual: row.inscricao_estadual || '',
+              tipo: String(row.tipo || 'Cliente'),
+              inscricao_estadual: String(row.inscricao_estadual || ''),
               dt_aniversario: parseExcelOrBrDate(dtRaw) || null,
-              endereco: row.endereco || row.rua || '',
+              endereco: String(row.endereco || row.rua || ''),
               numero: String(row.numero || ''),
-              complemento: row.complemento || '',
-              bairro: row.bairro || '',
-              cep: row.cep || '',
+              complemento: String(row.complemento || ''),
+              bairro: String(row.bairro || ''),
+              cep: String(row.cep || ''),
               cidade,
-              estado: row.estado || row.uf || '',
+              estado: String(row.estado || row.uf || ''),
               ativo: true,
             }
 
@@ -751,6 +820,7 @@ export default function DataImportPage() {
       }
 
       if (mestreFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Pacientes Mestre...' })
         const text = await readFile(mestreFile)
         const data = parseCSV(text)
 
@@ -769,7 +839,7 @@ export default function DataImportPage() {
 
         for (let i = 0; i < dataToProcess.length; i++) {
           const row = dataToProcess[i]
-          const patientIdRaw = row['patient_id'] || row['patient id']
+          const patientIdRaw = String(row['patient_id'] || row['patient id'] || '')
           const patientId = patientIdRaw ? parseInt(patientIdRaw, 10) : null
           const nome = String(row['name'] || row['nome'] || '')
 
@@ -778,34 +848,36 @@ export default function DataImportPage() {
             continue
           }
 
-          const strActive = (row['active'] || row['ativo'] || '').toString().toLowerCase().trim()
+          const strActive = String(row['active'] || row['ativo'] || '')
+            .toLowerCase()
+            .trim()
           const ativo =
             strActive === 't' || strActive === 'true' || strActive === '1' || strActive === 'yes'
 
           const pacienteData: any = {
             nome: nome,
-            civil_name: row['civil_name'] || row['civil name'] || '',
+            civil_name: String(row['civil_name'] || row['civil name'] || ''),
             telefone: normPhone(
-              row['mobile_phone'] || row['mobile phone'] || row['telefone'] || '',
+              String(row['mobile_phone'] || row['mobile phone'] || row['telefone'] || ''),
             ),
-            home_phone: normPhone(row['home_phone'] || row['home phone'] || ''),
-            email: row['email'] || '',
-            genero: row['gender'] || row['genero'] || '',
-            cpf_cnpj: row['cpf'] || '',
-            rg: row['rg'] || '',
-            endereco: row['address'] || row['endereco'] || '',
-            numero: row['number'] || row['numero'] || '',
-            complemento: row['complement'] || row['complemento'] || '',
-            bairro: row['neighborhood'] || row['bairro'] || '',
-            cidade: row['city'] || row['cidade'] || '',
-            estado: row['state'] || row['estado'] || '',
-            cep: row['zip_code'] || row['zip code'] || row['cep'] || '',
+            home_phone: normPhone(String(row['home_phone'] || row['home phone'] || '')),
+            email: String(row['email'] || ''),
+            genero: String(row['gender'] || row['genero'] || ''),
+            cpf_cnpj: String(row['cpf'] || ''),
+            rg: String(row['rg'] || ''),
+            endereco: String(row['address'] || row['endereco'] || ''),
+            numero: String(row['number'] || row['numero'] || ''),
+            complemento: String(row['complement'] || row['complemento'] || ''),
+            bairro: String(row['neighborhood'] || row['bairro'] || ''),
+            cidade: String(row['city'] || row['cidade'] || ''),
+            estado: String(row['state'] || row['estado'] || ''),
+            cep: String(row['zip_code'] || row['zip code'] || row['cep'] || ''),
             ativo: ativo,
-            observacoes_clinicas: row['observation'] || row['observacao'] || '',
+            observacoes_clinicas: String(row['observation'] || row['observacao'] || ''),
           }
 
           if (patientId) pacienteData.patient_id = patientId
-          const dataNasc = parseBrDate(row['birthdate'] || row['data_nascimento'])
+          const dataNasc = parseBrDate(String(row['birthdate'] || row['data_nascimento'] || ''))
           if (dataNasc) pacienteData.data_nascimento = dataNasc
 
           try {
@@ -849,6 +921,7 @@ export default function DataImportPage() {
       }
 
       if (mestreAgendamentosFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Agendamentos Mestre...' })
         const text = await readFile(mestreAgendamentosFile)
         const data = parseCSV(text)
 
@@ -858,7 +931,7 @@ export default function DataImportPage() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const dateRaw = row.date || row.data || ''
+          const dateRaw = String(row.date || row.data || '')
           if (!dateRaw) continue
 
           const parsedDateStr = parseExcelOrBrDate(dateRaw)
@@ -870,14 +943,14 @@ export default function DataImportPage() {
           const isConcluido = dtObj < today
           const status = isConcluido ? 'concluido' : 'agendado'
 
-          const physicianIdStr = row.physician_id || row['physician id'] || ''
+          const physicianIdStr = String(row.physician_id || row['physician id'] || '')
           const physicianIdNum = parseInt(physicianIdStr, 10) || null
-          const physicianName = row.physician_name || row['physician name'] || ''
+          const physicianName = String(row.physician_name || row['physician name'] || '')
 
           if (physicianName) medicosSet.add(physicianName)
           else if (physicianIdNum) medicosSet.add(physicianIdNum.toString())
 
-          const patientIdRaw = row.patient_id || row['patient id'] || ''
+          const patientIdRaw = String(row.patient_id || row['patient id'] || '')
           const patientIdNum = parseInt(patientIdRaw, 10) || null
           const pbPacienteId = patientIdNum ? patientMapById.get(patientIdNum) : null
           const pbProfissionalId = userMapByName.get(normName(physicianName)) || fallbackUserId
@@ -885,24 +958,27 @@ export default function DataImportPage() {
           try {
             await pb.collection('agendamentos').create(
               {
-                pk: row.pk || '',
+                pk: String(row.pk || ''),
                 patient_id: patientIdNum,
                 physician_id: physicianIdNum,
                 physician_name: physicianName,
                 date: parsedDateStr,
-                start_time: row.start_time || row['start time'] || '',
-                end_time: row.end_time || row['end time'] || '',
-                procedure_pack: row.procedure_pack || row['procedure pack'] || row.procedure || '',
-                observation: row.observation || row.observacoes || '',
-                date_added: parseExcelOrBrDate(row.date_added || row['date added']) || null,
-                updated_at: parseExcelOrBrDate(row.updated_at || row['updated at']) || null,
+                start_time: String(row.start_time || row['start time'] || ''),
+                end_time: String(row.end_time || row['end time'] || ''),
+                procedure_pack: String(
+                  row.procedure_pack || row['procedure pack'] || row.procedure || '',
+                ),
+                observation: String(row.observation || row.observacoes || ''),
+                date_added:
+                  parseExcelOrBrDate(String(row.date_added || row['date added'] || '')) || null,
+                updated_at:
+                  parseExcelOrBrDate(String(row.updated_at || row['updated at'] || '')) || null,
                 status: status,
 
-                // fallback fields
                 paciente_id: pbPacienteId,
                 profissional_id: pbProfissionalId,
                 data_agendamento: parsedDateStr,
-                hora_agendamento: row.start_time || row['start time'] || '',
+                hora_agendamento: String(row.start_time || row['start time'] || ''),
                 tipo: 'avaliacao',
               },
               { requestKey: null },
@@ -919,13 +995,14 @@ export default function DataImportPage() {
       }
 
       if (pessoasFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Pessoas...' })
         const text = await readFile(pessoasFile)
         const data = parseCSV(text)
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const nome = row.nome || getField(row, ['nome'])
-          const telefone = row.telefone || getField(row, ['telefone'])
+          const nome = String(row.nome || getField(row, ['nome']))
+          const telefone = String(row.telefone || getField(row, ['telefone']))
           if (!nome) {
             logs.push(`Linha ${i + 2} (Pessoas): Paciente ignorado - Nome não fornecido.`)
             continue
@@ -938,16 +1015,17 @@ export default function DataImportPage() {
                 {
                   nome: nome,
                   telefone: telefone,
-                  email: row.email || '',
-                  endereco: row.endereco || row.rua || '',
-                  numero: row.numero || '',
-                  complemento: row.complemento || '',
-                  bairro: row.bairro || '',
-                  cidade: row.cidade || '',
-                  estado: row.estado || '',
-                  cep: row.cep || '',
-                  data_nascimento: parseBrDate(row.data_nascimento || row.nascimento) || null,
-                  genero: row.genero || '',
+                  email: String(row.email || ''),
+                  endereco: String(row.endereco || row.rua || ''),
+                  numero: String(row.numero || ''),
+                  complemento: String(row.complemento || ''),
+                  bairro: String(row.bairro || ''),
+                  cidade: String(row.cidade || ''),
+                  estado: String(row.estado || ''),
+                  cep: String(row.cep || ''),
+                  data_nascimento:
+                    parseBrDate(String(row.data_nascimento || row.nascimento || '')) || null,
+                  genero: String(row.genero || ''),
                 },
                 { requestKey: null },
               )
@@ -963,6 +1041,7 @@ export default function DataImportPage() {
       }
 
       if (vendasFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Vendas Antigas...' })
         const text = await readFile(vendasFile)
         const data = parseCSV(text)
 
@@ -980,8 +1059,8 @@ export default function DataImportPage() {
             let status = String(row.status || '').toLowerCase()
             if (!['pendente', 'paga', 'parcial'].includes(status)) status = 'pendente'
 
-            const valorTotal = parseBrCurrency(row.valor_total || row.valor)
-            const entradaPaga = parseBrCurrency(row.entrada_paga)
+            const valorTotal = parseBrCurrency(String(row.valor_total || row.valor || ''))
+            const entradaPaga = parseBrCurrency(String(row.entrada_paga || ''))
 
             await pb.collection('vendas').create(
               {
@@ -992,9 +1071,9 @@ export default function DataImportPage() {
                 entrada_paga: entradaPaga,
                 status: status,
                 data_venda:
-                  parseBrDate(row.data_proposta || row.data_venda || row.data) ||
+                  parseBrDate(String(row.data_proposta || row.data_venda || row.data || '')) ||
                   new Date().toISOString(),
-                observacoes: row.observacoes || row.id_proposta || '',
+                observacoes: String(row.observacoes || row.id_proposta || ''),
               },
               { requestKey: null },
             )
@@ -1006,15 +1085,17 @@ export default function DataImportPage() {
       }
 
       if (financeiroFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Financeiro...' })
         const text = await readFile(financeiroFile)
         const data = parseCSV(text)
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
           const tipo = String(row.tipo || '').toLowerCase()
-          const valor = parseBrCurrency(row.valor)
-          const dtVencimento = parseBrDate(row.data_vencimento) || new Date().toISOString()
-          const dtPagamento = parseBrDate(row.data_pagamento)
+          const valor = parseBrCurrency(String(row.valor || ''))
+          const dtVencimento =
+            parseBrDate(String(row.data_vencimento || '')) || new Date().toISOString()
+          const dtPagamento = parseBrDate(String(row.data_pagamento || ''))
 
           if (tipo === 'receita') {
             const pid = findPatient(row)
@@ -1034,7 +1115,7 @@ export default function DataImportPage() {
                   data_vencimento: dtVencimento,
                   data_pagamento: dtPagamento || null,
                   status: status,
-                  observacoes: row.descricao || row.observacoes || '',
+                  observacoes: String(row.descricao || row.observacoes || ''),
                 },
                 { requestKey: null },
               )
@@ -1052,14 +1133,14 @@ export default function DataImportPage() {
 
               await pb.collection('contas_pagar').create(
                 {
-                  descricao: row.descricao || 'Despesa Importada',
-                  fornecedor: row.nome_cliente || row.fornecedor || 'Desconhecido',
+                  descricao: String(row.descricao || 'Despesa Importada'),
+                  fornecedor: String(row.nome_cliente || row.fornecedor || 'Desconhecido'),
                   valor: valor,
                   status: status,
                   categoria: categoria,
                   data_vencimento: dtVencimento,
                   data_pagamento: dtPagamento || null,
-                  observacoes: row.observacoes || '',
+                  observacoes: String(row.observacoes || ''),
                 },
                 { requestKey: null },
               )
@@ -1072,15 +1153,16 @@ export default function DataImportPage() {
       }
 
       if (fluxoFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Fluxo de Pagamentos...' })
         const text = await readFile(fluxoFile)
         const data = parseCSV(text)
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const vencimentoRaw = row.vencimento || row.data_vencimento
+          const vencimentoRaw = String(row.vencimento || row.data_vencimento || '')
           const vencimento = parseBrDate(vencimentoRaw)
-          const valor = parseBrCurrency(row.valor)
-          const fornecedor = row.fornecedor || row.nome || row.descricao || ''
+          const valor = parseBrCurrency(String(row.valor || ''))
+          const fornecedor = String(row.fornecedor || row.nome || row.descricao || '')
 
           if (!vencimento || !fornecedor) {
             logs.push(
@@ -1098,9 +1180,9 @@ export default function DataImportPage() {
                 vencimento: vencimento,
                 valor: valor,
                 fornecedor: fornecedor,
-                observacoes: row.observacoes || '',
+                observacoes: String(row.observacoes || ''),
                 status: status,
-                data_pagto: parseBrDate(row.data_pagto || row.data_pagamento) || null,
+                data_pagto: parseBrDate(String(row.data_pagto || row.data_pagamento || '')) || null,
               },
               { requestKey: null },
             )
@@ -1112,16 +1194,18 @@ export default function DataImportPage() {
       }
 
       if (acompanhamentoFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Acompanhamento...' })
         const text = await readFile(acompanhamentoFile)
         const data = parseCSV(text)
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const mesStr = row['mes'] || row['mês'] || row['data'] || ''
+          const mesStr = String(row['mes'] || row['mês'] || row['data'] || '')
           const mes = parseExcelOrBrDate(mesStr)
-          const vendedor = row['vendedor'] || ''
-          const nomeCliente =
-            row['nome do cliente ou fornecedor'] || row['nome'] || row['cliente'] || ''
+          const vendedor = String(row['vendedor'] || '')
+          const nomeCliente = String(
+            row['nome do cliente ou fornecedor'] || row['nome'] || row['cliente'] || '',
+          )
 
           if (!vendedor || !nomeCliente) {
             logs.push(
@@ -1130,11 +1214,15 @@ export default function DataImportPage() {
             continue
           }
 
-          const valor = parseBrCurrency(row['valor'])
-          const valorBaixado = parseBrCurrency(row['valor baixado (bruto)'] || row['valor baixado'])
-          const valorVencer = parseBrCurrency(row['valor a vencer'] || row['valor a receber'])
-          const valorVencido = parseBrCurrency(row['valor vencido'])
-          const valorPerda = parseBrCurrency(row['valor da perda'])
+          const valor = parseBrCurrency(String(row['valor'] || ''))
+          const valorBaixado = parseBrCurrency(
+            String(row['valor baixado (bruto)'] || row['valor baixado'] || ''),
+          )
+          const valorVencer = parseBrCurrency(
+            String(row['valor a vencer'] || row['valor a receber'] || ''),
+          )
+          const valorVencido = parseBrCurrency(String(row['valor vencido'] || ''))
+          const valorPerda = parseBrCurrency(String(row['valor da perda'] || ''))
 
           try {
             await pb.collection('acompanhamento_vendas').create(
@@ -1163,6 +1251,7 @@ export default function DataImportPage() {
       }
 
       if (cirurgiasFile) {
+        setImportProgress({ current: 0, total: 0, status: 'Processando Cirurgias Realizadas...' })
         const text = await readFile(cirurgiasFile)
         const data = parseCSV(text)
 
@@ -1209,11 +1298,13 @@ export default function DataImportPage() {
             continue
           }
 
-          const dataCirurgiaStr = row['data cirurgia'] || row['data da cirurgia'] || ''
-          const valorVenda = parseBrCurrency(row['valor venda'])
-          const formaPagamento = row['forma de pagamento'] || row['forma pagamento'] || ''
-          const valorPago = parseBrCurrency(row['valor pago'])
-          const valorAReceber = parseBrCurrency(row['valor a receber'] || row['valor à receber'])
+          const dataCirurgiaStr = String(row['data cirurgia'] || row['data da cirurgia'] || '')
+          const valorVenda = parseBrCurrency(String(row['valor venda'] || ''))
+          const formaPagamento = String(row['forma de pagamento'] || row['forma pagamento'] || '')
+          const valorPago = parseBrCurrency(String(row['valor pago'] || ''))
+          const valorAReceber = parseBrCurrency(
+            String(row['valor a receber'] || row['valor à receber'] || ''),
+          )
 
           try {
             await pb.collection('cirurgias_realizadas').create(
@@ -1249,7 +1340,7 @@ export default function DataImportPage() {
         erros: logs,
       })
 
-      toast({ title: 'Sucesso', description: 'Importação de vendas concluída com sucesso.' })
+      toast({ title: 'Sucesso', description: 'Importação concluída com sucesso.' })
     } catch (error: any) {
       toast({
         title: 'Erro de Processamento',
@@ -1258,6 +1349,7 @@ export default function DataImportPage() {
       })
     } finally {
       setLoading(false)
+      setImportProgress(null)
       setPessoasFile(null)
       setVendasFile(null)
       setFinanceiroFile(null)
@@ -1325,8 +1417,9 @@ export default function DataImportPage() {
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
-                  Cria vendas automaticamente. Verifica CPJ/CNPJ ou Nome para associar ao paciente,
-                  criando um novo se necessário. Gera as contas a receber para as vendas ativas.
+                  Processamento em lote com tratamento de limite de taxa. Cria vendas e{' '}
+                  <strong>contas a receber</strong> automaticamente. Resolve e cria pacientes por
+                  CPF/CNPJ.
                 </CollapsibleContent>
               </Collapsible>
             </div>
@@ -1473,7 +1566,7 @@ export default function DataImportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Vendas
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Vendas Legado
             </CardTitle>
             <CardDescription>Upload propostas_comerciais.csv</CardDescription>
           </CardHeader>
@@ -1698,42 +1791,72 @@ export default function DataImportPage() {
         </Card>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
-        <Button variant="outline" asChild className="md:hidden">
-          <Link to="/relatorios/fluxo-pagamentos">
-            <TrendingDown className="w-4 h-4 mr-2" />
-            Ver Relatório Fluxo
-          </Link>
-        </Button>
-        <Button
-          onClick={handleImport}
-          disabled={
-            loading ||
-            (!pessoasFile &&
-              !vendasFile &&
-              !financeiroFile &&
-              !fluxoFile &&
-              !acompanhamentoFile &&
-              !cirurgiasFile &&
-              !mestreFile &&
-              !mestreAgendamentosFile &&
-              !cadastroFile &&
-              !contaAzulFile)
-          }
-          className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Processando e Importando...
-            </>
-          ) : (
-            <>
-              <Upload className="w-5 h-5 mr-2" />
-              Processar Importação
-            </>
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t">
+        <div className="w-full md:w-1/2">
+          {importProgress && (
+            <div className="p-4 border rounded-lg bg-muted/30 shadow-sm animate-fade-in">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-sm text-foreground">{importProgress.status}</h4>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {importProgress.total > 0
+                    ? `${Math.round((importProgress.current / importProgress.total) * 100)}%`
+                    : ''}
+                </span>
+              </div>
+              <Progress
+                value={
+                  importProgress.total > 0
+                    ? (importProgress.current / importProgress.total) * 100
+                    : 0
+                }
+                className="h-2.5 bg-muted-foreground/20"
+              />
+              {importProgress.total > 0 && (
+                <p className="text-xs text-muted-foreground mt-2 text-right">
+                  {importProgress.current} de {importProgress.total} registros processados
+                </p>
+              )}
+            </div>
           )}
-        </Button>
+        </div>
+
+        <div className="flex gap-3 w-full md:w-auto justify-end">
+          <Button variant="outline" asChild className="md:hidden">
+            <Link to="/relatorios/fluxo-pagamentos">
+              <TrendingDown className="w-4 h-4 mr-2" />
+              Ver Relatório Fluxo
+            </Link>
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={
+              loading ||
+              (!pessoasFile &&
+                !vendasFile &&
+                !financeiroFile &&
+                !fluxoFile &&
+                !acompanhamentoFile &&
+                !cirurgiasFile &&
+                !mestreFile &&
+                !mestreAgendamentosFile &&
+                !cadastroFile &&
+                !contaAzulFile)
+            }
+            className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Processando Lotes...
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5 mr-2" />
+                Processar Importação
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {results && (
@@ -1790,14 +1913,14 @@ export default function DataImportPage() {
             {results.contaAzul.vendasImportadas > 0 && (
               <div className="mt-6 border border-sky-100 dark:border-sky-900/30 rounded-lg p-5 bg-sky-50/50 dark:bg-sky-900/10">
                 <h4 className="font-semibold text-sky-700 dark:text-sky-400 mb-4 flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5" /> Resumo Vendas Conta Azul
+                  <ShoppingBag className="w-5 h-5" /> Resumo Vendas Conta Azul (Batch Processado)
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                   <div>
                     <div className="text-2xl font-bold text-sky-600">
                       {results.contaAzul.vendasImportadas}
                     </div>
-                    <div className="text-sm text-muted-foreground">Total Vendas Importadas</div>
+                    <div className="text-sm text-muted-foreground">Vendas Importadas</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-sky-600">
@@ -1809,13 +1932,13 @@ export default function DataImportPage() {
                     <div className="text-2xl font-bold text-sky-600">
                       {results.contaAzul.clientesNovos}
                     </div>
-                    <div className="text-sm text-muted-foreground">Clientes Novos Cadastrados</div>
+                    <div className="text-sm text-muted-foreground">Clientes Novos</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-sky-600">
                       {results.contaAzul.contasReceberCriadas}
                     </div>
-                    <div className="text-sm text-muted-foreground">Contas a Receber Criadas</div>
+                    <div className="text-sm text-muted-foreground">Contas a Receber</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-emerald-600">
@@ -1824,7 +1947,19 @@ export default function DataImportPage() {
                         currency: 'BRL',
                       }).format(results.contaAzul.valorTotalVendas)}
                     </div>
-                    <div className="text-sm text-muted-foreground">Valor Total de Vendas</div>
+                    <div className="text-sm text-muted-foreground">Valor Total</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {results.contaAzul.lotesProcessados}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Lotes Sucesso</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-red-500">
+                      {results.contaAzul.lotesComErro}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Lotes com Erro</div>
                   </div>
                 </div>
               </div>
