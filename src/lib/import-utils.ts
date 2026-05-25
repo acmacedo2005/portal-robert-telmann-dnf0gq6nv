@@ -53,42 +53,46 @@ export function parseBrCurrency(val: string | number): number {
   return isNaN(num) ? 0 : Number(num.toFixed(2))
 }
 
-export function parseExcelOrBrDate(val: string): string {
-  if (!val) return ''
-  if (/^\d{5}(\.\d+)?$/.test(val)) {
+export function parseExcelOrBrDate(val: any): string {
+  if (val === null || val === undefined || val === '') return ''
+  const strVal = String(val)
+  if (/^\d{5}(\.\d+)?$/.test(strVal)) {
     const excelEpoch = new Date(1899, 11, 30)
-    const d = new Date(excelEpoch.getTime() + parseFloat(val) * 86400000)
+    const d = new Date(excelEpoch.getTime() + parseFloat(strVal) * 86400000)
     return d.toISOString()
   }
-  return parseBrDate(val)
+  return parseBrDate(strVal)
 }
 
-export function parseBrDate(val: string): string {
-  if (!val) return ''
-  const match = val.match(/(\d{2})[/-](\d{2})[/-](\d{4})/)
+export function parseBrDate(val: any): string {
+  if (val === null || val === undefined || val === '') return ''
+  const strVal = String(val)
+  const match = strVal.match(/(\d{2})[/-](\d{2})[/-](\d{4})/)
   if (match) {
     return `${match[3]}-${match[2]}-${match[1]} 12:00:00.000Z`
   }
-  const isoMatch = val.match(/(\d{4})-(\d{2})-(\d{2})/)
+  const isoMatch = strVal.match(/(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) {
     return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]} 12:00:00.000Z`
   }
-  const d = new Date(val)
+  const d = new Date(strVal)
   if (!isNaN(d.getTime())) {
     return d.toISOString()
   }
-  return val
+  return strVal
 }
 
-export function normName(n: string): string {
-  return n ? n.toLowerCase().trim() : ''
+export function normName(n: any): string {
+  if (n === null || n === undefined || n === '') return ''
+  return String(n).toLowerCase().trim()
 }
 
-export function normPhone(p: string): string {
-  return p ? p.replace(/\D/g, '') : ''
+export function normPhone(p: any): string {
+  if (p === null || p === undefined || p === '') return ''
+  return String(p).replace(/\D/g, '')
 }
 
 export function getField(row: any, possibleKeys: string[]): string {
   const key = Object.keys(row).find((k) => possibleKeys.some((pk) => k.includes(pk)))
-  return key ? row[key] : ''
+  return key ? String(row[key]) : ''
 }

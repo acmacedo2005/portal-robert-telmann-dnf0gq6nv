@@ -415,7 +415,7 @@ export default function DataImportPage() {
           const valorDescontoRaw = cleanRow['valor_desconto'] || cleanRow['desconto'] || '0'
           const valorDesconto = parseBrCurrency(valorDescontoRaw)
 
-          const observacoes =
+          const observacoesRaw =
             cleanRow['observacoes de vendas'] ||
             cleanRow['observacoes'] ||
             cleanRow['observacao'] ||
@@ -427,6 +427,23 @@ export default function DataImportPage() {
             const vMatch = userMapByName.get(normName(vendedorRaw))
             if (vMatch) vendedorId = vMatch
           }
+
+          const formaPagamento =
+            cleanRow['forma de pagamento'] ||
+            cleanRow['forma pagamento'] ||
+            cleanRow['condicao de pagamento'] ||
+            ''
+          const servicoRaw =
+            cleanRow['produtos/servicos'] ||
+            cleanRow['produto/servico'] ||
+            cleanRow['servico'] ||
+            ''
+
+          const obsList = []
+          if (servicoRaw) obsList.push(`Serviço: ${servicoRaw}`)
+          if (formaPagamento) obsList.push(`Pagamento: ${formaPagamento}`)
+          if (observacoesRaw) obsList.push(`Obs: ${observacoesRaw}`)
+          const observacoes = obsList.join(' | ')
 
           const dataVendaRaw =
             cleanRow['data venda'] ||
@@ -617,7 +634,7 @@ export default function DataImportPage() {
           if (tipo_pessoa === 'J') cadastroResData.j++
           else cadastroResData.f++
 
-          const cidade = row.cidade || ''
+          const cidade = String(row.cidade || '')
           if (cidade) cities.add(cidade.toLowerCase().trim())
 
           let isIncomplete = false
@@ -700,7 +717,7 @@ export default function DataImportPage() {
           const row = dataToProcess[i]
           const patientIdRaw = row['patient_id'] || row['patient id']
           const patientId = patientIdRaw ? parseInt(patientIdRaw, 10) : null
-          const nome = row['name'] || row['nome'] || ''
+          const nome = String(row['name'] || row['nome'] || '')
 
           if (!nome) {
             logs.push(`Planilha Mestre: Linha ignorada - Nome não fornecido.`)
@@ -906,7 +923,7 @@ export default function DataImportPage() {
           }
 
           try {
-            let status = (row.status || '').toLowerCase()
+            let status = String(row.status || '').toLowerCase()
             if (!['pendente', 'paga', 'parcial'].includes(status)) status = 'pendente'
 
             const valorTotal = parseBrCurrency(row.valor_total || row.valor)
@@ -940,7 +957,7 @@ export default function DataImportPage() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const tipo = (row.tipo || '').toLowerCase()
+          const tipo = String(row.tipo || '').toLowerCase()
           const valor = parseBrCurrency(row.valor)
           const dtVencimento = parseBrDate(row.data_vencimento) || new Date().toISOString()
           const dtPagamento = parseBrDate(row.data_pagamento)
@@ -953,7 +970,7 @@ export default function DataImportPage() {
             }
 
             try {
-              let status = (row.status || '').toLowerCase()
+              let status = String(row.status || '').toLowerCase()
               if (!['pendente', 'vencida', 'paga', 'parcial'].includes(status)) status = 'pendente'
 
               await pb.collection('faturas').create(
@@ -973,10 +990,10 @@ export default function DataImportPage() {
             }
           } else if (tipo === 'despesa') {
             try {
-              let status = (row.status || '').toLowerCase()
+              let status = String(row.status || '').toLowerCase()
               if (!['pendente', 'vencida', 'paga'].includes(status)) status = 'pendente'
 
-              let categoria = (row.categoria || '').toLowerCase()
+              let categoria = String(row.categoria || '').toLowerCase()
               if (!categoria) categoria = 'outros'
 
               await pb.collection('contas_pagar').create(
@@ -1019,7 +1036,7 @@ export default function DataImportPage() {
           }
 
           try {
-            let status = (row.status || '').toLowerCase()
+            let status = String(row.status || '').toLowerCase()
             if (!['pendente', 'pago', 'vencido', 'cancelado'].includes(status)) status = 'pendente'
 
             await pb.collection('fluxo_pagamentos').create(
@@ -1119,8 +1136,8 @@ export default function DataImportPage() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          const nomePaciente = row['nome do paciente'] || row['nome'] || ''
-          const consultor = row['consultor'] || ''
+          const nomePaciente = String(row['nome do paciente'] || row['nome'] || '')
+          const consultor = String(row['consultor'] || '')
 
           const nomeLower = nomePaciente.toLowerCase().trim()
           const consultorLower = consultor.toLowerCase().trim()
