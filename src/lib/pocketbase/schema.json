@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T00:27:26.139Z",
+  "generatedAt": "2026-05-25T01:15:05.968Z",
   "collections": [
     {
       "name": "users",
@@ -990,7 +990,15 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["pendente", "paga", "parcial"]
+          "selectValues": [
+            "pendente",
+            "paga",
+            "parcial",
+            "cancelada",
+            "Cancelada",
+            "ativa",
+            "Ativa"
+          ]
         },
         {
           "name": "data_venda",
@@ -1067,6 +1075,18 @@
           "required": false,
           "system": false,
           "collectionRef": "servicos"
+        },
+        {
+          "name": "numero_venda",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_cancelamento",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -1996,6 +2016,79 @@
           "name": "valor_a_receber",
           "type": "number",
           "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "contas_receber",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "venda_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "vendas"
+        },
+        {
+          "name": "paciente_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pacientes"
+        },
+        {
+          "name": "valor_total",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_recebido",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_pendente",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Pendente", "Pago", "Parcial"]
+        },
+        {
+          "name": "data_vencimento",
+          "type": "date",
+          "required": true,
           "system": false
         },
         {

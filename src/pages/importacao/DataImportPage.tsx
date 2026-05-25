@@ -29,6 +29,7 @@ import {
   Activity,
   Users,
   CalendarDays,
+  ShoppingBag,
 } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
@@ -189,6 +190,7 @@ export default function DataImportPage() {
   const [mestreFile, setMestreFile] = useState<File | null>(null)
   const [mestreAgendamentosFile, setMestreAgendamentosFile] = useState<File | null>(null)
   const [cadastroFile, setCadastroFile] = useState<File | null>(null)
+  const [contaAzulFile, setContaAzulFile] = useState<File | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
@@ -218,6 +220,13 @@ export default function DataImportPage() {
       incompletos: number
       successMsg: string
     }
+    contaAzul: {
+      vendasImportadas: number
+      clientesLocalizados: number
+      clientesNovos: number
+      contasReceberCriadas: number
+      valorTotalVendas: number
+    }
     erros: string[]
   } | null>(null)
 
@@ -240,7 +249,8 @@ export default function DataImportPage() {
       !cirurgiasFile &&
       !mestreFile &&
       !mestreAgendamentosFile &&
-      !cadastroFile
+      !cadastroFile &&
+      !contaAzulFile
     ) {
       toast({
         title: 'Aviso',
@@ -280,15 +290,25 @@ export default function DataImportPage() {
       incompletos: 0,
       successMsg: '',
     }
+    const contaAzulRes = {
+      vendasImportadas: 0,
+      clientesLocalizados: 0,
+      clientesNovos: 0,
+      contasReceberCriadas: 0,
+      valorTotalVendas: 0,
+    }
 
     try {
       const existingPacientes = await pb.collection('pacientes').getFullList({ requestKey: null })
       const patientMap = new Map<string, string>()
       const patientMapById = new Map<number, string>()
+      const patientMapByDoc = new Map<string, string>()
+
       for (const p of existingPacientes) {
         const key = `${normName(p.nome)}|${normPhone(p.telefone)}`
         patientMap.set(key, p.id)
         if (p.patient_id) patientMapById.set(p.patient_id, p.id)
+        if (p.cpf_cnpj) patientMapByDoc.set(normPhone(p.cpf_cnpj), p.id)
       }
 
       const allUsers = await pb.collection('users').getFullList({ requestKey: null })
@@ -312,6 +332,179 @@ export default function DataImportPage() {
           }
         }
         return null
+      }
+
+      // Import Conta Azul Vendas
+      if (contaAzulFile) {
+        const isXlsx = contaAzulFile.name.toLowerCase().endsWith('.xlsx')
+        let rawData: any[] = []
+        if (isXlsx) {
+          const buffer = await contaAzulFile.arrayBuffer()
+          const workbook = XLSX.read(buffer, { type: 'array' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+        } else {
+          const text = await readFile(contaAzulFile)
+          rawData = parseCSV(text)
+        }
+
+        const existingVendasRaw = await pb
+          .collection('vendas')
+          .getFullList({ fields: 'numero_venda', requestKey: null })
+        const existingNumbers = new Set(
+          existingVendasRaw.map((v) => v.numero_venda).filter((n) => n !== null && n !== undefined),
+        )
+
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i]
+          const cleanRow: any = {}
+          for (const key in row) {
+            const cleanKey = key
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim()
+            cleanRow[cleanKey] = row[key]
+          }
+
+          const numeroRaw =
+            cleanRow['numero'] || cleanRow['venda'] || cleanRow['numero da venda'] || cleanRow['id']
+          const numeroStr = String(numeroRaw).replace(/\D/g, '')
+          const numero_venda = numeroStr ? parseInt(numeroStr, 10) : null
+
+          if (!numero_venda || isNaN(numero_venda)) {
+            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - sem número de venda válido.`)
+            continue
+          }
+
+          if (existingNumbers.has(numero_venda)) {
+            logs.push(
+              `Conta Azul (Linha ${i + 2}): ignorada - venda número ${numero_venda} já importada.`,
+            )
+            continue
+          }
+
+          const valorTotalRaw =
+            cleanRow['valor total'] || cleanRow['valor'] || cleanRow['total'] || '0'
+          const valorTotal = parseBrCurrency(valorTotalRaw)
+          if (valorTotalRaw && isNaN(valorTotal)) {
+            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - valor numérico inválido.`)
+            continue
+          }
+
+          const dataVendaRaw = cleanRow['data da venda'] || cleanRow['emissao'] || cleanRow['data']
+          const dataVendaStr = parseExcelOrBrDate(dataVendaRaw)
+          if (dataVendaRaw && !dataVendaStr) {
+            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - formato de data de venda inválido.`)
+            continue
+          }
+          const dataVenda = dataVendaStr || new Date().toISOString()
+
+          const dataCancelamentoRaw = cleanRow['data de cancelamento'] || cleanRow['cancelamento']
+          const dataCancelamento = parseExcelOrBrDate(dataCancelamentoRaw)
+
+          const docRaw =
+            cleanRow['cpf'] ||
+            cleanRow['cnpj'] ||
+            cleanRow['cpf/cnpj'] ||
+            cleanRow['cpf/cnpj do cliente'] ||
+            ''
+          const docClean = normPhone(docRaw)
+          const nomeRaw =
+            cleanRow['cliente'] || cleanRow['nome'] || cleanRow['nome do cliente'] || ''
+          const nomeClean = normName(nomeRaw)
+
+          let pid = null
+
+          if (docClean && patientMapByDoc.has(docClean)) {
+            pid = patientMapByDoc.get(docClean)
+            contaAzulRes.clientesLocalizados++
+          } else if (nomeClean) {
+            for (const [k, v] of patientMap.entries()) {
+              if (k.startsWith(nomeClean + '|')) {
+                pid = v
+                contaAzulRes.clientesLocalizados++
+                break
+              }
+            }
+          }
+
+          if (!pid && nomeRaw) {
+            try {
+              const pData = {
+                nome: nomeRaw,
+                cpf_cnpj: docClean,
+                tipo: 'Cliente',
+                ativo: true,
+              }
+              const novo = await pb.collection('pacientes').create(pData, { requestKey: null })
+              pid = novo.id
+              if (docClean) patientMapByDoc.set(docClean, pid)
+              patientMap.set(`${nomeClean}|`, pid)
+              contaAzulRes.clientesNovos++
+            } catch (err: any) {
+              logs.push(
+                `Conta Azul (Linha ${i + 2}): erro ao criar cliente ${nomeRaw} - ${err.message}`,
+              )
+            }
+          }
+
+          if (!pid) {
+            logs.push(`Conta Azul (Linha ${i + 2}): ignorada - sem cliente.`)
+            continue
+          }
+
+          try {
+            const isCancelada = !!dataCancelamento
+            const statusVenda = isCancelada ? 'Cancelada' : 'Ativa'
+
+            const venda = await pb.collection('vendas').create(
+              {
+                paciente_id: pid,
+                tipo: 'tratamento',
+                valor_total: valorTotal,
+                valor_final: valorTotal,
+                status: statusVenda,
+                data_venda: dataVenda,
+                numero_venda: numero_venda,
+                data_cancelamento: dataCancelamento || null,
+              },
+              { requestKey: null },
+            )
+
+            contaAzulRes.vendasImportadas++
+            contaAzulRes.valorTotalVendas += valorTotal
+            existingNumbers.add(numero_venda)
+
+            if (!isCancelada) {
+              const vencimentoRaw = cleanRow['data de vencimento'] || cleanRow['vencimento']
+              let dtVencimento = parseExcelOrBrDate(vencimentoRaw)
+              if (!dtVencimento) {
+                const d = new Date(dataVenda)
+                d.setDate(d.getDate() + 30)
+                dtVencimento = d.toISOString()
+              }
+
+              await pb.collection('contas_receber').create(
+                {
+                  venda_id: venda.id,
+                  paciente_id: pid,
+                  valor_total: valorTotal,
+                  valor_recebido: 0,
+                  valor_pendente: valorTotal,
+                  status: 'Pendente',
+                  data_vencimento: dtVencimento,
+                },
+                { requestKey: null },
+              )
+
+              contaAzulRes.contasReceberCriadas++
+            }
+          } catch (err: any) {
+            logs.push(`Conta Azul (Linha ${i + 2}): erro ao criar venda/conta - ${err.message}`)
+          }
+        }
       }
 
       // Import Planilha Mestre
@@ -350,6 +543,7 @@ export default function DataImportPage() {
 
           patientMap.clear()
           patientMapById.clear()
+          patientMapByDoc.clear()
         } catch (err: any) {
           logs.push(`Erro ao limpar o banco: ${err.message}`)
         }
@@ -431,6 +625,7 @@ export default function DataImportPage() {
 
             const key = `${normName(nome)}|${normPhone(payload.telefone)}`
             patientMap.set(key, novo.id)
+            if (cpf_cnpj) patientMapByDoc.set(cpf_cnpj, novo.id)
 
             pacientesImportados++
             cadastroResData.total++
@@ -483,7 +678,7 @@ export default function DataImportPage() {
             home_phone: normPhone(row['home_phone'] || row['home phone'] || ''),
             email: row['email'] || '',
             genero: row['gender'] || row['genero'] || '',
-            cpf: row['cpf'] || '',
+            cpf_cnpj: row['cpf'] || '',
             rg: row['rg'] || '',
             endereco: row['address'] || row['endereco'] || '',
             numero: row['number'] || row['numero'] || '',
@@ -513,11 +708,11 @@ export default function DataImportPage() {
               }
             }
 
-            if (!existingId && pacienteData.cpf) {
+            if (!existingId && pacienteData.cpf_cnpj) {
               try {
                 const existing = await pb
                   .collection('pacientes')
-                  .getFirstListItem(`cpf="${pacienteData.cpf}"`, { requestKey: null })
+                  .getFirstListItem(`cpf_cnpj="${pacienteData.cpf_cnpj}"`, { requestKey: null })
                 existingId = existing.id
               } catch {
                 /* intentionally ignored */
@@ -937,10 +1132,11 @@ export default function DataImportPage() {
         acompanhamento: acompanhamentoRes,
         mestreAgendamentos: mestreAgendamentosRes,
         cadastro: cadastroResData,
+        contaAzul: contaAzulRes,
         erros: logs,
       })
 
-      toast({ title: 'Sucesso', description: 'Processo de importação concluído com sucesso.' })
+      toast({ title: 'Sucesso', description: 'Importação de vendas concluída com sucesso.' })
     } catch (error: any) {
       toast({
         title: 'Erro de Processamento',
@@ -958,6 +1154,7 @@ export default function DataImportPage() {
       setMestreFile(null)
       setMestreAgendamentosFile(null)
       setCadastroFile(null)
+      setContaAzulFile(null)
       const inputs = document.querySelectorAll('input[type="file"]')
       inputs.forEach((input) => {
         ;(input as HTMLInputElement).value = ''
@@ -973,7 +1170,7 @@ export default function DataImportPage() {
           <div>
             <h1 className="text-3xl font-bold">Dashboard de Importação</h1>
             <p className="text-muted-foreground mt-1">
-              Carregue arquivos CSV para migrar dados legados para o sistema.
+              Carregue arquivos CSV e XLSX para migrar dados legados para o sistema.
             </p>
           </div>
         </div>
@@ -989,6 +1186,40 @@ export default function DataImportPage() {
       <CirurgiasRealizadasDashboard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+        <Card className="border-sky-200 bg-sky-50/10 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-sky-600" /> Vendas Conta Azul
+            </CardTitle>
+            <CardDescription>Upload relatorio_vendas.xlsx</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="contaAzul">Arquivo XLSX/CSV</Label>
+                <Input
+                  id="contaAzul"
+                  type="file"
+                  accept=".csv,.xlsx"
+                  onChange={(e) => setContaAzulFile(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+              </div>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center text-sm text-sky-600 hover:text-sky-800 font-medium">
+                  <Info className="w-4 h-4 mr-1" /> Importação Inteligente{' '}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs text-slate-700 bg-slate-50 border border-slate-100 p-3 rounded-md font-mono leading-relaxed">
+                  Cria vendas automaticamente. Verifica CPJ/CNPJ ou Nome para associar ao paciente,
+                  criando um novo se necessário. Gera as contas a receber para as vendas ativas.
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-rose-200 bg-rose-50/10 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -1291,7 +1522,8 @@ export default function DataImportPage() {
               !cirurgiasFile &&
               !mestreFile &&
               !mestreAgendamentosFile &&
-              !cadastroFile)
+              !cadastroFile &&
+              !contaAzulFile)
           }
           className="w-full md:w-auto h-12 px-8 text-base shadow-sm"
         >
@@ -1359,6 +1591,49 @@ export default function DataImportPage() {
                 <div className="text-sm font-medium text-muted-foreground mt-2">Cirurgias</div>
               </div>
             </div>
+
+            {results.contaAzul.vendasImportadas > 0 && (
+              <div className="mt-6 border border-sky-100 dark:border-sky-900/30 rounded-lg p-5 bg-sky-50/50 dark:bg-sky-900/10">
+                <h4 className="font-semibold text-sky-700 dark:text-sky-400 mb-4 flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5" /> Resumo Vendas Conta Azul
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-sky-600">
+                      {results.contaAzul.vendasImportadas}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Vendas Importadas</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-sky-600">
+                      {results.contaAzul.clientesLocalizados}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Clientes Localizados</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-sky-600">
+                      {results.contaAzul.clientesNovos}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Clientes Novos Cadastrados</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-sky-600">
+                      {results.contaAzul.contasReceberCriadas}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Contas a Receber Criadas</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(results.contaAzul.valorTotalVendas)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Valor Total de Vendas</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {results.cadastro.total > 0 && (
               <div className="mt-6 border border-rose-100 dark:border-rose-900/30 rounded-lg p-5 bg-rose-50/50 dark:bg-rose-900/10">
