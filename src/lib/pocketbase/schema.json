@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T01:45:29.736Z",
+  "generatedAt": "2026-05-25T02:17:02.225Z",
   "collections": [
     {
       "name": "users",
@@ -1412,6 +1412,13 @@
           "required": false,
           "system": false,
           "collectionRef": "formas_pagamento"
+        },
+        {
+          "name": "lancamento_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "lancamentos_financeiros"
         }
       ],
       "indexes": []
@@ -2089,6 +2096,192 @@
           "name": "data_vencimento",
           "type": "date",
           "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "lancamentos_financeiros",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "data",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_quitacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_negociador",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["REVENUE", "EXPENSE"]
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["QUITADO", "PENDENTE"]
+        },
+        {
+          "name": "data_vencimento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_competencia",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_pagamento_esperada",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metodo_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "conta_financeira",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "categoria",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "centro_custo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX `idx_lancamentos_hash` ON `lancamentos_financeiros` (hash)"]
+    },
+    {
+      "name": "recebimentos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "contas_receber_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "contas_receber"
+        },
+        {
+          "name": "lancamento_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "lancamentos_financeiros"
+        },
+        {
+          "name": "data_recebimento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_recebido",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metodo_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
           "system": false
         },
         {

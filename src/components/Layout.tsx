@@ -9,6 +9,7 @@ import {
   Calendar,
   ShoppingCart,
   Settings,
+  Database,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -84,6 +85,12 @@ export default function Layout() {
       name: 'Configurações',
       path: '/parametrizacao',
       icon: Settings,
+      roles: ['admin'],
+    },
+    {
+      name: 'Importação',
+      path: '/importacao',
+      icon: Database,
       roles: ['admin'],
     },
   ]
