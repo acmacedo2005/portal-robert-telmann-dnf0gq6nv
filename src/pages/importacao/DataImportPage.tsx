@@ -30,7 +30,19 @@ import {
   Users,
   CalendarDays,
   ShoppingBag,
+  Trash2,
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 import pb from '@/lib/pocketbase/client'
 import useRealtime from '@/hooks/use-realtime'
@@ -192,6 +204,14 @@ export default function DataImportPage() {
   const [cadastroFile, setCadastroFile] = useState<File | null>(null)
   const [contaAzulFile, setContaAzulFile] = useState<File | null>(null)
 
+  const [isWiping, setIsWiping] = useState(false)
+  const [wipeResults, setWipeResults] = useState<{
+    pagamentos: number
+    contas_receber: number
+    vendas: number
+    status: string
+  } | null>(null)
+
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{
     pacientes: number
@@ -229,6 +249,40 @@ export default function DataImportPage() {
     }
     erros: string[]
   } | null>(null)
+
+  const handleWipeVendas = async () => {
+    setIsWiping(true)
+    setWipeResults(null)
+    try {
+      // Coleta as contagens antes da exclusão para exibir no relatório
+      const resPagamentos = await pb.collection('pagamentos').getList(1, 1, { requestKey: null })
+      const resContas = await pb.collection('contas_receber').getList(1, 1, { requestKey: null })
+      const resVendas = await pb.collection('vendas').getList(1, 1, { requestKey: null })
+
+      const counts = {
+        pagamentos: resPagamentos.totalItems,
+        contas_receber: resContas.totalItems,
+        vendas: resVendas.totalItems,
+      }
+
+      // Chama a rota personalizada do backend para truncar as tabelas
+      await pb.send('/backend/v1/import/wipe-vendas', { method: 'POST' })
+
+      setWipeResults({
+        ...counts,
+        status: 'Banco limpo e pronto para reimportar',
+      })
+      toast({ title: 'Sucesso', description: 'Dados de vendas removidos com sucesso.' })
+    } catch (err: any) {
+      toast({
+        title: 'Erro de Exclusão',
+        description: err.message || 'Erro ao limpar dados de vendas.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsWiping(false)
+    }
+  }
 
   const readFile = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1558,6 +1612,88 @@ export default function DataImportPage() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-8 mb-4 border-t pt-8">
+        <h3 className="text-lg font-semibold text-red-600 flex items-center gap-2 mb-4">
+          <AlertCircle className="w-5 h-5" />
+          Zona de Perigo - Limpeza de Dados
+        </h3>
+        <Card className="border-red-200 bg-red-50/10 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-red-700">Limpar Dados de Vendas</CardTitle>
+            <CardDescription>
+              Apaga todos os registros de pagamentos (recebimentos), contas a receber e vendas em
+              ordem para manter a integridade do banco. Use isso apenas se precisar reimportar as
+              vendas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isWiping}>
+                  {isWiping ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Apagando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" /> Limpar Dados de Vendas
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. Isso excluirá permanentemente todos os
+                    registros de <strong>pagamentos</strong>, <strong>contas a receber</strong> e{' '}
+                    <strong>vendas</strong> do banco de dados.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleWipeVendas}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Sim, apagar tudo
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {wipeResults && (
+              <div className="mt-6 p-4 rounded-md border border-red-100 bg-white dark:bg-background shadow-sm animate-fade-in">
+                <h4 className="font-semibold text-red-700 flex items-center gap-2 mb-4">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  Relatório de Limpeza
+                </h4>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex justify-between border-b border-red-100 dark:border-red-900/30 pb-1">
+                    <span className="text-muted-foreground">Total de vendas apagadas:</span>
+                    <span className="font-bold">{wipeResults.vendas}</span>
+                  </li>
+                  <li className="flex justify-between border-b border-red-100 dark:border-red-900/30 pb-1">
+                    <span className="text-muted-foreground">
+                      Total de contas a receber apagadas:
+                    </span>
+                    <span className="font-bold">{wipeResults.contas_receber}</span>
+                  </li>
+                  <li className="flex justify-between border-b border-red-100 dark:border-red-900/30 pb-1">
+                    <span className="text-muted-foreground">Total de recebimentos apagados:</span>
+                    <span className="font-bold">{wipeResults.pagamentos}</span>
+                  </li>
+                  <li className="flex justify-between pt-1 mt-2">
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="font-bold text-green-600">{wipeResults.status}</span>
+                  </li>
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
