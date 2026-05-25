@@ -55,9 +55,9 @@ export function parseBrCurrency(val: string | number): number {
 
 export function parseExcelOrBrDate(val: string): string {
   if (!val) return ''
-  if (/^\d{5}$/.test(val)) {
+  if (/^\d{5}(\.\d+)?$/.test(val)) {
     const excelEpoch = new Date(1899, 11, 30)
-    const d = new Date(excelEpoch.getTime() + parseInt(val, 10) * 86400000)
+    const d = new Date(excelEpoch.getTime() + parseFloat(val) * 86400000)
     return d.toISOString()
   }
   return parseBrDate(val)

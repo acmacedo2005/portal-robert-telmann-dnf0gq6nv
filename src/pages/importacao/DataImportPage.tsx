@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -315,9 +316,46 @@ export default function DataImportPage() {
 
       // Import Planilha Mestre
       if (cadastroFile) {
-        const text = await readFile(cadastroFile)
-        const data = parseCSV(text)
+        const isXlsx = cadastroFile.name.toLowerCase().endsWith('.xlsx')
+        let data: any[] = []
+
+        if (isXlsx) {
+          const buffer = await cadastroFile.arrayBuffer()
+          const workbook = XLSX.read(buffer, { type: 'array' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+
+          data = rawData.map((row) => {
+            const newRow: any = {}
+            for (const key in row) {
+              const cleanKey = key
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim()
+              newRow[cleanKey] = row[key]
+            }
+            return newRow
+          })
+        } else {
+          const text = await readFile(cadastroFile)
+          data = parseCSV(text)
+        }
+
+        try {
+          logs.push('Iniciando limpeza crítica do banco de dados (Wipe)...')
+          await pb.send('/backend/v1/import/wipe', { method: 'POST' })
+          logs.push('Banco de dados limpo com sucesso.')
+
+          patientMap.clear()
+          patientMapById.clear()
+        } catch (err: any) {
+          logs.push(`Erro ao limpar o banco: ${err.message}`)
+        }
+
         const cities = new Set<string>()
+        const seenCpfCnpj = new Set<string>()
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
@@ -326,14 +364,16 @@ export default function DataImportPage() {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
           const email = emailRegex.test(emailRaw) ? emailRaw : ''
 
-          const fone_comercial = normPhone(row.fone_comercial || row.telefone_comercial || '')
+          const fone_comercial = normPhone(
+            String(row.fone_comercial || row.telefone_comercial || ''),
+          )
           const fone_celular = normPhone(
-            row.fone_celular || row.telefone_celular || row.celular || row.telefone || '',
+            String(row.fone_celular || row.telefone_celular || row.celular || row.telefone || ''),
           )
 
-          let cpf_cnpj = normPhone(row.cpf_cnpj || row.cpf || row.cnpj || '')
+          let cpf_cnpj = normPhone(String(row.cpf_cnpj || row.cpf || row.cnpj || ''))
 
-          const tipo_pessoa = (row.tipo_pessoa || row.fisica_juridica || 'F')
+          const tipo_pessoa = String(row.tipo_pessoa || row.fisica_juridica || 'F')
             .toUpperCase()
             .startsWith('J')
             ? 'J'
@@ -355,20 +395,16 @@ export default function DataImportPage() {
             )
           }
 
-          try {
-            let existingId = null
-            if (cpf_cnpj) {
-              try {
-                const ex = await pb
-                  .collection('pacientes')
-                  .getFirstListItem(`cpf_cnpj="${cpf_cnpj}"`, { requestKey: null })
-                existingId = ex.id
-              } catch {
-                /* intentionally ignored */
-              }
-            }
+          if (cpf_cnpj && seenCpfCnpj.has(cpf_cnpj)) {
+            logs.push(
+              `Linha ${i + 2} (Cadastro Master): Duplicidade evitada para CPF/CNPJ ${cpf_cnpj}`,
+            )
+            continue
+          }
+          if (cpf_cnpj) seenCpfCnpj.add(cpf_cnpj)
 
-            const dtRaw = row.dt_aniversario || row.aniversario || row.data_nascimento
+          try {
+            const dtRaw = String(row.dt_aniversario || row.aniversario || row.data_nascimento || '')
 
             const payload = {
               nome: nome || 'Sem Nome',
@@ -382,7 +418,7 @@ export default function DataImportPage() {
               inscricao_estadual: row.inscricao_estadual || '',
               dt_aniversario: parseExcelOrBrDate(dtRaw) || null,
               endereco: row.endereco || row.rua || '',
-              numero: row.numero || '',
+              numero: String(row.numero || ''),
               complemento: row.complemento || '',
               bairro: row.bairro || '',
               cep: row.cep || '',
@@ -391,12 +427,12 @@ export default function DataImportPage() {
               ativo: true,
             }
 
-            if (existingId) {
-              await pb.collection('pacientes').update(existingId, payload, { requestKey: null })
-            } else {
-              await pb.collection('pacientes').create(payload, { requestKey: null })
-              pacientesImportados++
-            }
+            const novo = await pb.collection('pacientes').create(payload, { requestKey: null })
+
+            const key = `${normName(nome)}|${normPhone(payload.telefone)}`
+            patientMap.set(key, novo.id)
+
+            pacientesImportados++
             cadastroResData.total++
           } catch (err: any) {
             logs.push(`Linha ${i + 2} (Cadastro Master): Erro - ${err.message}`)
@@ -958,16 +994,16 @@ export default function DataImportPage() {
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="w-5 h-5 text-rose-600" /> Cadastro Master
             </CardTitle>
-            <CardDescription>Upload cadastro_vinci240526.csv</CardDescription>
+            <CardDescription>Upload cadastro_vinci240526.xlsx ou .csv</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid w-full items-center gap-1.5">
-                <Label htmlFor="cadastro">Arquivo CSV</Label>
+                <Label htmlFor="cadastro">Arquivo XLSX/CSV</Label>
                 <Input
                   id="cadastro"
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx"
                   onChange={(e) => setCadastroFile(e.target.files?.[0] || null)}
                   disabled={loading}
                 />
