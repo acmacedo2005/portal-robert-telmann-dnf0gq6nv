@@ -5,7 +5,7 @@ export const getVendas = async (): Promise<RecordModel[]> => {
   return pb
     .collection('vendas')
     .getFullList({
-      expand: 'paciente_id,vendedor_id,tipo_servico_id',
+      expand: 'paciente_id,novo_vendedor_id,tipo_servico_id',
       sort: '-created',
       requestKey: null,
     })

@@ -75,10 +75,11 @@ export default function VendasList() {
       setLoading(true)
       setError(false)
       const res = await pb.collection('vendas').getFullList({
-        expand: 'paciente_id,vendedor_id,tipo_servico_id',
+        expand: 'paciente_id,novo_vendedor_id,tipo_servico_id',
         sort: '-data_venda',
         requestKey: null,
-      })      setVendas(res)
+      })
+      setVendas(res)
 
       const v = await pb.collection('users').getFullList({
         filter: "especialidade='vendedor' || papel='vendedor'",
@@ -122,7 +123,7 @@ export default function VendasList() {
 
   const filteredVendas = useMemo(() => {
     return vendas.filter((v) => {
-      if (filterVendedor !== 'all' && v.vendedor_id !== filterVendedor) return false
+      if (filterVendedor !== 'all' && v.novo_vendedor_id !== filterVendedor) return false
       if (filterStatus !== 'all' && v.status !== filterStatus) return false
       if (filterDateStart && v.data_venda < filterDateStart) return false
       if (filterDateEnd && v.data_venda > filterDateEnd + 'T23:59:59') return false
@@ -292,7 +293,7 @@ export default function VendasList() {
                         {v.expand?.tipo_servico_id?.nome || '-'}
                       </TableCell>
                       <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
-                        {v.expand?.vendedor_id?.nome_completo || '-'}
+                        {v.expand?.novo_vendedor_id?.nome_completo || '-'}
                       </TableCell>
                       <TableCell className="text-center">{formatDate(v.data_venda)}</TableCell>
                       <TableCell className="text-right font-medium">
@@ -367,7 +368,8 @@ export default function VendasList() {
                       <div>
                         <p className="font-bold text-lg">{v.expand?.paciente_id?.nome}</p>
                         <p className="text-xs text-zinc-500">
-                          {v.expand?.tipo_servico_id?.nome} | Vend: {v.expand?.vendedor_id?.nome_completo}
+                          {v.expand?.tipo_servico_id?.nome} | Vend:{' '}
+                          {v.expand?.novo_vendedor_id?.nome_completo}
                         </p>
                       </div>
                       <Badge

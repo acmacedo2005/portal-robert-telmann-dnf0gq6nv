@@ -24,8 +24,8 @@ routerAdd(
         updated = true
       }
 
-      if (!v.getString('vendedor_id') && defaultVendedor) {
-        v.set('vendedor_id', defaultVendedor.id)
+      if (!v.getString('novo_vendedor_id') && defaultVendedor) {
+        v.set('novo_vendedor_id', defaultVendedor.id)
         updated = true
       }
 

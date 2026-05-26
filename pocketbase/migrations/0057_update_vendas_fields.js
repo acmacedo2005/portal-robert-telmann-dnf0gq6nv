@@ -13,7 +13,7 @@ migrate(
     const tiposServicoCol = app.findCollectionByNameOrId('tipos_servico')
 
     col.fields.add(
-      new RelationField({ name: 'vendedor_id', collectionId: vendedoresCol.id, maxSelect: 1 }),
+      new RelationField({ name: 'novo_vendedor_id', collectionId: vendedoresCol.id, maxSelect: 1 }),
     )
     col.fields.add(
       new RelationField({
@@ -48,7 +48,7 @@ migrate(
   },
   (app) => {
     const col = app.findCollectionByNameOrId('vendas')
-    col.fields.removeByName('vendedor_id')
+    col.fields.removeByName('novo_vendedor_id')
     col.fields.removeByName('tipo_servico_id')
     col.fields.removeByName('valor_desconto')
     col.fields.removeByName('forma_pagamento')
@@ -58,12 +58,13 @@ migrate(
     col.fields.removeByName('entrada')
     col.fields.removeByName('valor_parcela')
 
-    col.fields.add(
-      new RelationField({ name: 'vendedor_id', collectionId: '_pb_users_auth_', maxSelect: 1 }),
-    )
-    col.fields.add(
-      new RelationField({ name: 'servico_id', collectionId: 'servicos', maxSelect: 1 }),
-    )
+    try {
+      const usersCol = app.findCollectionByNameOrId('_pb_users_auth_')
+      col.fields.add(
+        new RelationField({ name: 'vendedor_id', collectionId: usersCol.id, maxSelect: 1 }),
+      )
+    } catch (_) {}
+
     app.save(col)
   },
 )

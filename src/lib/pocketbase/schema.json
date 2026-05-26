@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-26T17:41:55.228Z",
+  "generatedAt": "2026-05-26T17:55:39.139Z",
   "collections": [
     {
       "name": "users",
@@ -1063,20 +1063,6 @@
           "system": false
         },
         {
-          "name": "vendedor_id",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "users"
-        },
-        {
-          "name": "servico_id",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "servicos"
-        },
-        {
           "name": "numero_venda",
           "type": "number",
           "required": false,
@@ -1085,6 +1071,72 @@
         {
           "name": "data_cancelamento",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "novo_vendedor_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "vendedores"
+        },
+        {
+          "name": "tipo_servico_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "tipos_servico"
+        },
+        {
+          "name": "valor_desconto",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "Dinheiro",
+            "Cartão de Crédito",
+            "Cartão de Débito",
+            "PIX",
+            "Boleto",
+            "Transferência",
+            "Cheque",
+            "Não informado"
+          ]
+        },
+        {
+          "name": "quantidade_tratamento_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quantidade_prp",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quantidade_mesoterapia",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "entrada",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_parcela",
+          "type": "number",
           "required": false,
           "system": false
         }
@@ -2300,6 +2352,93 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "vendedores",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "nome_completo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_vendedores_nome ON vendedores (nome_completo)"]
+    },
+    {
+      "name": "tipos_servico",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.papel = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "categoria",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Cirurgia", "Tratamento", "Procedimento", "Consulta"]
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_tipos_servico_nome ON tipos_servico (nome)"]
     }
   ]
 }

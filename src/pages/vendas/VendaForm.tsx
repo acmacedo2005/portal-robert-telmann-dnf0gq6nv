@@ -41,7 +41,7 @@ import {
 
 const formSchema = z.object({
   paciente_id: z.string().min(1, 'Paciente é obrigatório'),
-  vendedor_id: z.string().min(1, 'Vendedor é obrigatório'),
+  novo_vendedor_id: z.string().min(1, 'Vendedor é obrigatório'),
   tipo_servico_id: z.string().min(1, 'Serviço é obrigatório'),
   data_venda: z.string(),
   valor_total: z.number().min(0),
@@ -146,7 +146,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
         quantidade_prp: 0,
         quantidade_mesoterapia: 0,
         paciente_id: '',
-        vendedor_id: '',
+        novo_vendedor_id: '',
         tipo_servico_id: '',
         forma_pagamento: 'Não informado',
         observacoes: '',
@@ -155,7 +155,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
     } else if (initialData && isOpen) {
       form.reset({
         paciente_id: initialData.paciente_id,
-        vendedor_id: initialData.vendedor_id || '',
+        novo_vendedor_id: initialData.novo_vendedor_id || '',
         tipo_servico_id: initialData.tipo_servico_id || '',
         data_venda: initialData.data_venda
           ? initialData.data_venda.substring(0, 10)
@@ -318,7 +318,7 @@ export default function VendaForm({ isOpen, onClose, initialData, onSuccess }: a
                   />
                   <FormField
                     control={form.control}
-                    name="vendedor_id"
+                    name="novo_vendedor_id"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Vendedor *</FormLabel>
