@@ -4,7 +4,11 @@ import type { RecordModel } from 'pocketbase'
 export const getVendas = async (): Promise<RecordModel[]> => {
   return pb
     .collection('vendas')
-    .getFullList({ expand: 'paciente_id,vendedor_id', sort: '-created', requestKey: null })
+    .getFullList({
+      expand: 'paciente_id,vendedor_id,tipo_servico_id',
+      sort: '-created',
+      requestKey: null,
+    })
 }
 
 export const createVenda = async (data: any): Promise<RecordModel> => {

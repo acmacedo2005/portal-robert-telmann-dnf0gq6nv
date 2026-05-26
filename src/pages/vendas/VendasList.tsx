@@ -75,11 +75,10 @@ export default function VendasList() {
       setLoading(true)
       setError(false)
       const res = await pb.collection('vendas').getFullList({
-        expand: 'paciente_id,vendedor_id',
+        expand: 'paciente_id,vendedor_id,tipo_servico_id',
         sort: '-data_venda',
         requestKey: null,
-      })
-      setVendas(res)
+      })      setVendas(res)
 
       const v = await pb.collection('users').getFullList({
         filter: "especialidade='vendedor' || papel='vendedor'",
@@ -221,14 +220,14 @@ export default function VendasList() {
             <Table>
               <TableHeader className="bg-zinc-50 dark:bg-zinc-950">
                 <TableRow>
+                  <TableHead>Nº</TableHead>
                   <TableHead>Paciente</TableHead>
+                  <TableHead>Serviço</TableHead>
                   <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Valor Total</TableHead>
-                  <TableHead className="text-right">Entrada</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
                   <TableHead className="text-center">Data</TableHead>
+                  <TableHead className="text-right">Valor Total</TableHead>
+                  <TableHead className="text-center">Pagamento</TableHead>
                   <TableHead className="text-center">Status</TableHead>
-                  <TableHead>Próx. Agendamento</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -283,45 +282,31 @@ export default function VendasList() {
                       key={v.id}
                       className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition-colors"
                     >
+                      <TableCell className="font-mono text-zinc-500">
+                        #{v.numero_venda || v.id.slice(0, 5).toUpperCase()}
+                      </TableCell>
                       <TableCell className="font-semibold text-zinc-800 dark:text-zinc-200">
                         {v.expand?.paciente_id?.nome}
                       </TableCell>
                       <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
-                        {v.expand?.vendedor_id?.name || v.expand?.vendedor_id?.nome || '-'}
+                        {v.expand?.tipo_servico_id?.nome || '-'}
                       </TableCell>
+                      <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
+                        {v.expand?.vendedor_id?.nome_completo || '-'}
+                      </TableCell>
+                      <TableCell className="text-center">{formatDate(v.data_venda)}</TableCell>
                       <TableCell className="text-right font-medium">
                         {formatCurrency(v.valor_total)}
                       </TableCell>
-                      <TableCell className="text-right">{formatCurrency(v.entrada_paga)}</TableCell>
-                      <TableCell className="text-right font-bold text-primary">
-                        {formatCurrency(v.saldo_restante)}
+                      <TableCell className="text-center text-xs">
+                        {v.forma_pagamento || 'Não informado'}
                       </TableCell>
-                      <TableCell className="text-center">{formatDate(v.data_venda)}</TableCell>
                       <TableCell className="text-center">
                         <Badge
-                          className={`uppercase text-[10px] ${statusColor[v.status as keyof typeof statusColor]}`}
+                          className={`uppercase text-[10px] ${statusColor[v.status as keyof typeof statusColor] || 'bg-zinc-100 text-zinc-800'}`}
                         >
-                          {v.status}
+                          {v.status || 'pendente'}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {nextAgendamentoByPaciente[v.paciente_id] ? (
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                              {formatDate(
-                                nextAgendamentoByPaciente[v.paciente_id].data_agendamento,
-                              )}{' '}
-                              {nextAgendamentoByPaciente[v.paciente_id].hora_agendamento || ''}
-                            </span>
-                            <span className="text-xs text-zinc-500 truncate max-w-[150px]">
-                              {nextAgendamentoByPaciente[v.paciente_id].tipo} -{' '}
-                              {nextAgendamentoByPaciente[v.paciente_id].expand?.profissional_id
-                                ?.name || 'Profissional'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-zinc-400 italic">Sem agendamentos</span>
-                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -381,7 +366,9 @@ export default function VendasList() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-bold text-lg">{v.expand?.paciente_id?.nome}</p>
-                        <p className="text-xs text-zinc-500">Vend: {v.expand?.vendedor_id?.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          {v.expand?.tipo_servico_id?.nome} | Vend: {v.expand?.vendedor_id?.nome_completo}
+                        </p>
                       </div>
                       <Badge
                         className={`uppercase text-[10px] ${statusColor[v.status as keyof typeof statusColor]}`}
